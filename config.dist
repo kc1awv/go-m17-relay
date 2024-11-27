@@ -1,5 +1,5 @@
 {
     "log_level": "info",
-    "relay_callsign": "M17-LAB",
+    "relay_callsign": "RLY000001",
     "bind_address": "127.0.0.1:17000"
 }

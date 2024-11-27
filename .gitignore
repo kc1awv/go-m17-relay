@@ -16,3 +16,5 @@ go.work
 *.vsix
 .history
 .ionide
+*.log
+*.json
