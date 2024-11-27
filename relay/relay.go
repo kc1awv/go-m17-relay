@@ -1,4 +1,4 @@
-package main
+package relay
 
 import (
 	"context"
@@ -293,7 +293,7 @@ func (r *Relay) RemoveInactiveClients(ctx context.Context) {
 
 // logClientState prints a log that shows the number of clients connected and
 // their details
-func (r *Relay) logClientState() {
+func (r *Relay) LogClientState() {
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
 

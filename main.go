@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"go-m17-relay/config"
 	"go-m17-relay/logging"
+	"go-m17-relay/relay"
 	"log"
 	"os"
 	"os/signal"
@@ -11,7 +13,7 @@ import (
 
 func main() {
 	// Load the configuration
-	config, err := LoadConfig("config.json")
+	config, err := config.LoadConfig("config.json")
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
@@ -26,7 +28,7 @@ func main() {
 	logging.LogInfo("Relay callsign", map[string]interface{}{"relayCallsign": relayCallsign})
 
 	// Initialize the relay
-	relay := NewRelay(config.BindAddress, relayCallsign)
+	relay := relay.NewRelay(config.BindAddress, relayCallsign)
 	if relay == nil {
 		logging.LogError("Failed to start relay.", nil)
 	}
@@ -43,7 +45,7 @@ func main() {
 	go relay.Listen(ctx)
 	go relay.PingClients(ctx)
 	go relay.RemoveInactiveClients(ctx)
-	go relay.logClientState()
+	go relay.LogClientState()
 
 	// Wait for shutdown signal
 	<-stop
