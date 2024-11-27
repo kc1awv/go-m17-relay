@@ -17,4 +17,4 @@ go.work
 .history
 .ionide
 *.log
-*.json
+config.json
