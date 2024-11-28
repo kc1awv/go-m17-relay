@@ -77,7 +77,7 @@ Example config.json:
 ### Control Packets
 
 ### `CONN`
-#### Connection request packet. Typically sent by clients.
+#### Connection request packet. Sent by a Client for linking to a Relay.
 
 | Byte | Size    | Purpose                                                                                                        |
 -------|---------|-------------------------------------------------------------------------------------------------------------------
@@ -86,7 +86,7 @@ Example config.json:
 | 10   | 1 byte  | ASCII (A-Z) module to connect to (Optional. Ignored for relays, kept for legacy mrefd/urfd reflectors)           |
 
 ### `LINK`
-#### Link request packet. Sent by relays to interlink with each other.
+#### Link request packet. Sent by a Relay to interlink with another Relay.
 
 | Byte | Size    | Purpose                                                                                                          |
 -------|---------|-------------------------------------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ Example config.json:
 | 0-3  | 4 bytes | Magic - ASCII "NACK" |
 
 ### `PING`
-#### Ping packet. Sent to maintain client or relay keepalive.
+#### Ping packet. Sent to maintain Peer keepalive.
 
 | Byte | Size    | Purpose                                                                                                          |
 -------|---------|-------------------------------------------------------------------------------------------------------------------
@@ -124,7 +124,7 @@ Example config.json:
 | 4-9  | 6 bytes | 'from' callsign as encoded per [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A)   |
 
 ### `DISC`
-#### Disconnect packet. Used to politely close a connection to/from a client or relay.
+#### Disconnect packet. Used to politely close a connection to/from a Peer.
 
 | Byte | Size    | Purpose                                                                                                          |
 -------|---------|-------------------------------------------------------------------------------------------------------------------
