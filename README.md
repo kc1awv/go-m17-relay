@@ -7,6 +7,27 @@ If you're familiar with how traditional M17 (and other) relfectors work, this is
 
 Multiple Relays can be interlinked together. The interlinking concept should be handled as a hub-and-spoke topology. While a mesh topology _could_ be created, this is untested at this time.
 
+## Glossary
+
+### Client
+An end "user". Some client programs include:
+  - [mvoice](https://github.com/n7tae/mvoice)
+  - [M17Gateway](https://github.com/g4klx/M17Gateway)
+  - [M17Client](https://github.com/g4klx/M17Client)
+  - [DroidStar](https://github.com/nostar/DroidStar)
+
+### Relay
+This program. Relays connect M17 Clients or other M17 Relays to each other and passes data between them.
+
+### Peer
+Either a Clent or a Relay. Peer is a general term used for anything connecting to a Relay.
+
+### Control Packet
+Packets sent or received by Peers to or from a Relay for creating, maintaining, and tearing down connections to each other.
+
+### Data Packet
+Packets sent by Clients to a Relay for distribution to other Peers. Data packets may contain M17 voice stream or packet data.
+
 ## Project Structure
 ```
 main.go         - Program Main functions
