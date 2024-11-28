@@ -23,9 +23,10 @@ import (
 )
 
 type Config struct {
-	LogLevel      string `json:"log_level"`
-	RelayCallsign string `json:"relay_callsign"`
-	BindAddress   string `json:"bind_address"`
+	LogLevel      string   `json:"log_level"`
+	RelayCallsign string   `json:"relay_callsign"`
+	BindAddress   string   `json:"bind_address"`
+	TargetRelays  []string `json:"target_relays"`
 }
 
 func LoadConfig(path string) (*Config, error) {

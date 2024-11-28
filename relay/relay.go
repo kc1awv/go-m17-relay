@@ -38,10 +38,17 @@ type ClientState struct {
 	Callsign string
 }
 
+type LinkState struct {
+	LastPong time.Time
+	Callsign string
+}
+
 // Relay represents the M17 relay server, handling client connections and
 // communication.
 type Relay struct {
 	Clients       sync.Map     // Holds all currently connected clients, keyed by their IP address.
+	LinkedRelays  sync.Map     // Holds all linked relays, keyed by their IP address.
+	TargetRelays  []string     // List of target relays to connect to
 	ClientsLock   sync.Mutex   // Mutex for managing access to the Clients map.
 	Socket        *net.UDPConn // UDP socket used for communication with clients.
 	RelayCallsign string       // Callsign of the relay itself.
@@ -51,6 +58,7 @@ type Relay struct {
 const (
 	PacketSize   = 10
 	MagicConn    = "CONN"
+	MagicLink    = "LINK"
 	MagicAckn    = "ACKN"
 	MagicNack    = "NACK"
 	MagicPing    = "PING"
@@ -87,7 +95,8 @@ func NewRelay(addr string, callsign string) *Relay {
 
 // Listen starts receiving packets and processes them based on the packet type
 // (data or control).
-func (r *Relay) Listen(ctx context.Context) {
+func (r *Relay) Listen(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	buf := make([]byte, 64)
 
 	logging.LogDebug("Relay is ready to receive packets...", nil)
@@ -95,11 +104,16 @@ func (r *Relay) Listen(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logging.LogInfo("Received shutdown signal, stopping listener...", nil)
+			logging.LogInfo("Listen: Received shutdown signal, stopping...", nil)
 			return
 		default:
+			r.Socket.SetReadDeadline(time.Now().Add(1 * time.Second))
 			n, addr, err := r.Socket.ReadFromUDP(buf)
 			if err != nil {
+				if ne, ok := err.(*net.OpError); ok && ne.Timeout() {
+					// Timeout error, continue to check for context cancellation
+					continue
+				}
 				if ne, ok := err.(*net.OpError); ok && ne.Op == "read" && ne.Err.Error() == "use of closed network connection" {
 					logging.LogDebug("Socket closed, exiting listen loop.", nil)
 					return
@@ -140,6 +154,26 @@ func (r *Relay) handleControlPacket(data []byte, addr *net.UDPAddr) {
 			module = data[10]
 		}
 		r.handleConnPacket(callsign, addr, module)
+	case MagicLink:
+		if len(data) < PacketSize {
+			logging.LogDebug("Invalid LINK packet length", map[string]interface{}{"from": addr.String()})
+			return
+		}
+		callsign := DecodeCallsign(data[4:10])
+		r.handleLinkPacket(callsign, addr)
+	case MagicAckn:
+		if len(data) < 4 {
+			logging.LogDebug("Invalid ACKN packet length", map[string]interface{}{"from": addr.String()})
+			return
+		}
+		r.handleAcknPacket(addr)
+	case MagicPing:
+		if len(data) < PacketSize {
+			logging.LogDebug("Invalid PING packet length", map[string]interface{}{"from": addr.String()})
+			return
+		}
+		callsign := DecodeCallsign(data[4:10])
+		r.handlePingPacket(callsign, addr)
 	case MagicPong:
 		if len(data) < PacketSize {
 			logging.LogDebug("Invalid PONG packet length", map[string]interface{}{"from": addr.String()})
@@ -184,13 +218,60 @@ func (r *Relay) handleConnPacket(callsign string, addr *net.UDPAddr, module byte
 	}
 }
 
+func (r *Relay) handleLinkPacket(callsign string, addr *net.UDPAddr) {
+	// Check if the relay is already linked
+	if _, exists := r.LinkedRelays.Load(addr.String()); exists {
+		logging.LogInfo("Relay is already linked", map[string]interface{}{"from": addr.String()})
+		return
+	}
+
+	logging.LogInfo("Establishing link with relay", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+
+	// Store the relay in the LinkedRelays map
+	r.LinkedRelays.Store(addr.String(), &LinkState{
+		LastPong: time.Now(),
+		Callsign: callsign,
+	})
+
+	// Optionally send a PING or ACKN packet back to the linked relay
+	r.sendPacket(MagicAckn, addr, nil)
+}
+
+// handleAcknPacket processes an acknowledgment (ACKN) packet.
+func (r *Relay) handleAcknPacket(addr *net.UDPAddr) {
+	logging.LogDebug("Received ACKN packet", map[string]interface{}{"from": addr.String()})
+	// Check if the relay is already linked
+	if _, exists := r.LinkedRelays.Load(addr.String()); exists {
+		logging.LogInfo("Relay is already linked", map[string]interface{}{"from": addr.String()})
+		return
+	}
+
+	logging.LogInfo("Establishing link with relay", map[string]interface{}{"from": addr.String()})
+
+	// Store the relay in the LinkedRelays map
+	r.LinkedRelays.Store(addr.String(), &LinkState{
+		LastPong: time.Now(),
+		Callsign: r.RelayCallsign,
+	})
+}
+
+// handlePingPacket processes a PING packet and responds with a PONG packet.
+func (r *Relay) handlePingPacket(callsign string, addr *net.UDPAddr) {
+	logging.LogDebug("Received PING packet", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+	logging.LogDebug("Responding with PONG packet", map[string]interface{}{"to": addr.String(), "callsign": callsign})
+	r.sendPong(addr, callsign)
+}
+
 // handleDiscPacket processes a DISCONNECT (DISC) packet and removes the client.
 func (r *Relay) handlePongPacket(callsign string, addr *net.UDPAddr) {
 	if client, exists := r.Clients.Load(addr.String()); exists {
 		client.(*ClientState).LastPong = time.Now()
-		logging.LogDebug("Received PONG", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+		logging.LogDebug("Received PONG from client", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+	} else if relay, exists := r.LinkedRelays.Load(addr.String()); exists {
+		relay.(*LinkState).LastPong = time.Now()
+		logging.LogDebug("Received PONG from relay", map[string]interface{}{"from": addr.String(), "callsign": callsign})
 	} else {
-		logging.LogDebug("PONG from unregistered client", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+		logging.LogDebug("PONG from unregistered peer", map[string]interface{}{"from": addr.String(), "callsign": callsign})
 	}
 }
 
@@ -251,14 +332,74 @@ func (r *Relay) sendPing(addr string) {
 	}
 }
 
-// pingWorker is responsible for sending PING packets to clients in parallel.
-func (r *Relay) pingWorker(tasks <-chan string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for addr := range tasks {
-		r.sendPing(addr)
+// sendPong sends a PONG packet to the specified address.
+func (r *Relay) sendPong(addr *net.UDPAddr, callsign string) {
+	encodedCallsign, err := EncodeCallsign(callsign)
+	if err != nil {
+		logging.LogError("Failed to encode callsign", map[string]interface{}{"err": err})
+		return
+	}
+
+	packet := make([]byte, 10)
+	copy(packet[:4], []byte(MagicPong))
+	copy(packet[4:], encodedCallsign)
+
+	_, err = r.Socket.WriteToUDP(packet, addr)
+	if err != nil {
+		logging.LogError("Failed to send PONG", map[string]interface{}{"to": addr.String(), "err": err})
 	}
 }
 
+func (r *Relay) pingWorker(ctx context.Context, tasks <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case addr, ok := <-tasks:
+			if !ok {
+				return
+			}
+			r.sendPing(addr)
+		}
+	}
+}
+
+func (r *Relay) PingClients(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	tasks := make(chan string, 100) // Adjust the channel size based on expected number of clients
+	var workerWg sync.WaitGroup
+
+	// Start worker goroutines
+	for i := 0; i < WorkerPoolSize; i++ {
+		workerWg.Add(1)
+		go r.pingWorker(ctx, tasks, &workerWg)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			logging.LogInfo("PingClients: Shutdown signal received, stopping...", nil)
+			close(tasks)
+			workerWg.Wait()
+			return
+		case <-ticker.C:
+			r.Clients.Range(func(key, value interface{}) bool {
+				tasks <- key.(string)
+				return true
+			})
+			r.LinkedRelays.Range(func(key, value interface{}) bool {
+				tasks <- key.(string)
+				return true
+			})
+		}
+	}
+}
+
+/*
 func (r *Relay) PingClients(ctx context.Context) {
 	tasks := make(chan string, 100) // You can adjust the channel size based on expected number of clients
 	var wg sync.WaitGroup
@@ -283,16 +424,18 @@ func (r *Relay) PingClients(ctx context.Context) {
 		}
 	}
 }
+*/
 
 // RemoveInactiveClients removes clients that have not sent a PONG packet to
 // the relay and may be lost
-func (r *Relay) RemoveInactiveClients(ctx context.Context) {
+func (r *Relay) RemoveInactiveClients(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	for {
 		select {
 		case <-ctx.Done():
 			logging.LogInfo("RemoveInactiveClients: Shutdown signal received, stopping...", nil)
 			return
-		case <-time.After(1 * time.Second):
+		case <-time.After(10 * time.Second):
 			now := time.Now()
 			r.ClientsLock.Lock()
 			r.Clients.Range(func(key, value interface{}) bool {
@@ -303,40 +446,112 @@ func (r *Relay) RemoveInactiveClients(ctx context.Context) {
 				}
 				return true
 			})
+			r.LinkedRelays.Range(func(key, value interface{}) bool {
+				relay := value.(*LinkState)
+				if now.Sub(relay.LastPong) > 30*time.Second {
+					logging.LogInfo("Removing inactive linked relay", map[string]interface{}{"relay": key})
+					r.LinkedRelays.Delete(key)
+				}
+				return true
+			})
 			r.ClientsLock.Unlock()
 		}
 	}
 }
 
+func (r *Relay) ConnectToRelays(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+	var workerWg sync.WaitGroup
+
+	for _, target := range r.TargetRelays {
+		workerWg.Add(1)
+		go func(target string) {
+			defer workerWg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					logging.LogInfo("ConnectToRelays: Shutdown signal received, stopping connection attempts...", map[string]interface{}{"target": target})
+					return
+				default:
+					// Check if the relay is already linked
+					if _, exists := r.LinkedRelays.Load(target); exists {
+						time.Sleep(10 * time.Second) // Wait before retrying
+						continue
+					}
+
+					logging.LogInfo("Attempting to link to relay", map[string]interface{}{"target": target})
+					err := r.sendLinkPacket(target)
+					if err != nil {
+						logging.LogError("Failed to send LINK packet", map[string]interface{}{"target": target, "err": err})
+						time.Sleep(5 * time.Second) // Retry after a delay
+						continue
+					}
+
+					// Wait for acknowledgment or retry
+					time.Sleep(10 * time.Second)
+				}
+			}
+		}(target)
+	}
+
+	workerWg.Wait()
+	logging.LogInfo("ConnectToRelays: All connection attempts stopped", nil)
+}
+
+func (r *Relay) sendLinkPacket(targetAddr string) error {
+	encodedCallsign, err := EncodeCallsign(r.RelayCallsign)
+	if err != nil {
+		return err
+	}
+
+	packet := make([]byte, 10)
+	copy(packet[:4], []byte(MagicLink))
+	copy(packet[4:], encodedCallsign)
+
+	udpAddr, err := net.ResolveUDPAddr("udp", targetAddr)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.Socket.WriteToUDP(packet, udpAddr)
+	return err
+}
+
 // logClientState prints a log that shows the number of clients connected and
 // their details
-func (r *Relay) LogClientState() {
+func (r *Relay) LogClientState(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
-
-	for range tick.C {
-		// Log the number of currently connected clients
-		numClients := 0
-		r.Clients.Range(func(key, value interface{}) bool {
-			numClients++
-			return true
-		})
-		logging.LogDebug("Current clients:", map[string]interface{}{
-			"count": numClients,
-		})
-
-		// Log each client's information
-		r.Clients.Range(func(key, value interface{}) bool {
-			client := value.(*ClientState)
-			logging.LogDebug("Client",
-				map[string]interface{}{
-					"key":      key, // Client identifier (e.g., IP address)
-					"callsign": client.Callsign,
-					"lastPong": client.LastPong.Format(time.RFC3339),
-				},
-			)
-			return true
-		})
+	for {
+		select {
+		case <-ctx.Done():
+			logging.LogInfo("LogClientState: Shutdown signal received, stopping...", nil)
+			return
+		case <-tick.C:
+			// Log the number of currently connected clients
+			numClients := 0
+			r.Clients.Range(func(key, value interface{}) bool {
+				numClients++
+				return true
+			})
+			logging.LogDebug("Current clients:", map[string]interface{}{
+				"count": numClients,
+			})
+			// Log each client's information
+			r.Clients.Range(func(key, value interface{}) bool {
+				client := value.(*ClientState)
+				logging.LogDebug("Client",
+					map[string]interface{}{
+						"key":      key, // Client identifier (e.g., IP address)
+						"callsign": client.Callsign,
+						"lastPong": client.LastPong.Format(time.RFC3339),
+					},
+				)
+				return true
+			})
+		}
 	}
 }
 
@@ -361,4 +576,29 @@ func (r *Relay) relayDataPacket(packet []byte, senderAddr *net.UDPAddr) {
 		}
 		return true
 	})
+
+	r.LinkedRelays.Range(func(key, value interface{}) bool {
+		addr := key.(string)
+		if addr != senderAddr.String() {
+			logging.LogDebug("Forwarding data packet to relay", map[string]interface{}{"to": addr})
+			udpAddr, err := net.ResolveUDPAddr("udp", addr)
+			if err != nil {
+				logging.LogError("Error resolving relay address", map[string]interface{}{"addr": addr, "err": err})
+				return true
+			}
+
+			_, err = r.Socket.WriteToUDP(packet, udpAddr)
+			if err != nil {
+				logging.LogError("Error forwarding data packet to relay", map[string]interface{}{"addr": addr, "err": err})
+			}
+		}
+		return true
+	})
+}
+
+func (r *Relay) Close() error {
+	if r.Socket != nil {
+		return r.Socket.Close()
+	}
+	return nil
 }
