@@ -399,33 +399,6 @@ func (r *Relay) PingClients(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-/*
-func (r *Relay) PingClients(ctx context.Context) {
-	tasks := make(chan string, 100) // You can adjust the channel size based on expected number of clients
-	var wg sync.WaitGroup
-
-	for i := 0; i < WorkerPoolSize; i++ {
-		go r.pingWorker(tasks, &wg)
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			logging.LogInfo("PingClients: Shutdown signal received, stopping...", nil)
-			close(tasks)
-			wg.Wait()
-			return
-		case <-time.After(1 * time.Second):
-			r.Clients.Range(func(key, value interface{}) bool {
-				addr := key.(string)
-				tasks <- addr
-				return true
-			})
-		}
-	}
-}
-*/
-
 // RemoveInactiveClients removes clients that have not sent a PONG packet to
 // the relay and may be lost
 func (r *Relay) RemoveInactiveClients(ctx context.Context, wg *sync.WaitGroup) {
