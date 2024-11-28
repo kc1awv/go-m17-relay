@@ -19,58 +19,105 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"go-m17-relay/config"
 	"go-m17-relay/logging"
 	"go-m17-relay/relay"
-	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 )
 
+func validateConfig(cfg *config.Config) error {
+	if len(cfg.RelayCallsign) > 9 {
+		return fmt.Errorf("relay callsign must be 9 characters or less")
+	}
+	if cfg.BindAddress == "" {
+		return fmt.Errorf("bind address cannot be empty")
+	}
+	return nil
+}
+
+func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup) {
+	services := []struct {
+		name string
+		fn   func(context.Context, *sync.WaitGroup)
+	}{
+		{"Listen", r.Listen},
+		{"ConnectToRelays", r.ConnectToRelays},
+		{"PingClients", r.PingClients},
+		{"RemoveInactiveClients", r.RemoveInactiveClients},
+		{"LogClientState", r.LogClientState},
+	}
+
+	for _, svc := range services {
+		wg.Add(1)
+		go func(name string, fn func(context.Context, *sync.WaitGroup)) {
+			logging.LogInfo(fmt.Sprintf("Starting %s service", name), nil)
+			fn(ctx, wg)
+		}(svc.name, svc.fn)
+	}
+}
+
 func main() {
-	// Load the configuration
-	config, err := config.LoadConfig("config.json")
+	// Load configuration
+	cfg, err := config.LoadConfig("config.json")
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		logging.LogError("Failed to load configuration", map[string]interface{}{"error": err})
+		os.Exit(1)
 	}
 
-	logging.InitLogLevel(config.LogLevel)
-
-	relayCallsign := config.RelayCallsign
-	if len(relayCallsign) > 9 {
-		log.Fatalf("Relay callsign must be 9 characters or less.")
+	if err := validateConfig(cfg); err != nil {
+		logging.LogError("Invalid configuration", map[string]interface{}{"error": err})
+		os.Exit(1)
 	}
 
-	logging.LogInfo("Relay callsign", map[string]interface{}{"relayCallsign": relayCallsign})
+	logging.InitLogLevel(cfg.LogLevel)
 
-	// Initialize the relay
-	relay := relay.NewRelay(config.BindAddress, relayCallsign)
-	if relay == nil {
-		logging.LogError("Failed to start relay.", nil)
+	// Initialize relay
+	r := relay.NewRelay(cfg.BindAddress, cfg.RelayCallsign)
+	if r == nil {
+		logging.LogError("Failed to start relay", nil)
+		os.Exit(1)
 	}
+	defer r.Close()
 
-	// Create a context to signal shutdown to the goroutines
+	r.TargetRelays = cfg.TargetRelays
+	logging.LogInfo("Relay initialized", map[string]interface{}{
+		"callsign": cfg.RelayCallsign,
+		"targets":  cfg.TargetRelays,
+	})
+
+	// Setup shutdown context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Set up a signal channel to catch SIGINT or SIGTERM (for graceful shutdown)
+	// Setup graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start the relay tasks in separate goroutines
-	go relay.Listen(ctx)
-	go relay.PingClients(ctx)
-	go relay.RemoveInactiveClients(ctx)
-	go relay.LogClientState()
+	// Start services
+	var wg sync.WaitGroup
+	startServices(ctx, r, &wg)
 
 	// Wait for shutdown signal
 	<-stop
-	logging.LogInfo("Received shutdown signal, shutting down...", nil)
-
-	// Cancel the context to stop the relay tasks
+	logging.LogInfo("Received shutdown signal", nil)
 	cancel()
 
-	// Wait for the relay to clean up and stop
-	logging.LogInfo("Relay shutdown complete.", nil)
+	// Wait for graceful shutdown with timeout
+	shutdownComplete := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(shutdownComplete)
+	}()
+
+	select {
+	case <-shutdownComplete:
+		logging.LogInfo("Graceful shutdown complete", nil)
+	case <-time.After(10 * time.Second):
+		logging.LogError("Shutdown timed out", nil)
+	}
 }

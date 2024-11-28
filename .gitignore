@@ -18,3 +18,4 @@ go.work
 .ionide
 *.log
 config.json
+go-m17-relay
