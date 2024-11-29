@@ -87,11 +87,11 @@ Example config.json:
 ### `CONN`
 #### Connection request packet. Sent by a Client for linking to a Relay.
 
-| Byte | Size    | Purpose                                                                                                        |
--------|---------|-------------------------------------------------------------------------------------------------------------------
-| 0-3  | 4 bytes | Magic - ASCII "CONN"                                                                                             |
-| 4-9  | 6 bytes | 'from' callsign as encoded per [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A)   |
-| 10   | 1 byte  | ASCII (A-Z) module to connect to (Optional. Ignored for relays, kept for legacy mrefd/urfd reflectors)           |
+| Byte | Size    | Purpose                                                                                                                  |
+-------|---------|---------------------------------------------------------------------------------------------------------------------------
+| 0-3  | 4 bytes | Magic - ASCII "CONN"                                                                                                     |
+| 4-9  | 6 bytes | 'from' callsign as encoded per [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A)           |
+| 10   | 1 byte  | ASCII (A-Z) module to connect to (Optional. Ignored for relays, kept for backwards compatibilty with mrefd/urfd clients) |
 
 ### `LINK`
 #### Link request packet. Sent by a Relay to interlink with another Relay.
