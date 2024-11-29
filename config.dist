@@ -3,6 +3,7 @@
     "relay_callsign": "RLY000001",
     "bind_address": "127.0.0.1:17000",
     "web_interface_address": "127.0.0.1:8080",
+    "daemon_mode": true,
     "target_relays": [
         {
             "callsign": "RLY000002",

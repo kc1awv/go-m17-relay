@@ -57,11 +57,14 @@ The configuration is loaded from a JSON file (`config.json`).
 
 The configuration file should include the following fields:
 
-- `log_level`: The logging level (e.g., "debug", "info", "warn", "error").
-- `relay_callsign`: The 'callsign' of the relay.
-- `bind_address`: The address to bind the UDP socket to.
-- `web_interface_address`: The address to bind the web interface to.
-- `target_relays`: A list of target relay addresses to connect to.
+- `log_level`: (`STRING`) The logging level (e.g., "debug", "info", "warn", "error").
+- `relay_callsign`: (`STRING`) The 'callsign' of the relay. 9 character maximum, only characters allowed by [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A).
+- `bind_address`: (`STRING`) The address and port to bind the UDP socket to.
+- `web_interface_address`: (`STRING`) The address and port to bind the web interface to.
+- `daemon_mode`: (`BOOL`) Daemonize the relay to run in the background.
+- `target_relays`: (`ARRAY`) A list of target relay addresses to connect to.
+  - `callsign`: (`STRING`) 'Callsign' of the relay to connect to.
+  - `address`: (`STRING`) Address and port of the relay to connect to.
 
 Example config.json:
 
@@ -71,6 +74,7 @@ Example config.json:
     "relay_callsign": "RLY000001",
     "bind_address": "127.0.0.1:17000",
     "web_interface_address": "127.0.0.1:8080",
+    "daemon_mode": true,
     "target_relays": [
         {
             "callsign": "RLY000002",
