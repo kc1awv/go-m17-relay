@@ -381,7 +381,7 @@ func (r *Relay) pingWorker(ctx context.Context, tasks <-chan string, wg *sync.Wa
 	}
 }
 
-func (r *Relay) PingClients(ctx context.Context, wg *sync.WaitGroup) {
+func (r *Relay) PingPeers(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
@@ -398,7 +398,7 @@ func (r *Relay) PingClients(ctx context.Context, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-ctx.Done():
-			logging.LogInfo("PingClients: Shutdown signal received, stopping...", nil)
+			logging.LogInfo("PingPeers: Shutdown signal received, stopping...", nil)
 			close(tasks)
 			workerWg.Wait()
 			return
@@ -417,12 +417,12 @@ func (r *Relay) PingClients(ctx context.Context, wg *sync.WaitGroup) {
 
 // RemoveInactiveClients removes clients that have not sent a PONG packet to
 // the relay and may be lost
-func (r *Relay) RemoveInactiveClients(ctx context.Context, wg *sync.WaitGroup) {
+func (r *Relay) RemoveInactivePeers(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		select {
 		case <-ctx.Done():
-			logging.LogInfo("RemoveInactiveClients: Shutdown signal received, stopping...", nil)
+			logging.LogInfo("RemoveInactivePeerss: Shutdown signal received, stopping...", nil)
 			return
 		case <-time.After(10 * time.Second):
 			now := time.Now()
@@ -506,9 +506,8 @@ func (r *Relay) sendLinkPacket(targetAddr string) error {
 	return err
 }
 
-// logClientState prints a log that shows the number of clients connected and
-// their details
-func (r *Relay) LogClientState(ctx context.Context, wg *sync.WaitGroup) {
+// logPeerState prints a log that shows the number of clients and relays connected and their details
+func (r *Relay) LogPeerState(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	tick := time.NewTicker(10 * time.Second)
@@ -516,17 +515,23 @@ func (r *Relay) LogClientState(ctx context.Context, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-ctx.Done():
-			logging.LogInfo("LogClientState: Shutdown signal received, stopping...", nil)
+			logging.LogInfo("LogPeerState: Shutdown signal received, stopping...", nil)
 			return
 		case <-tick.C:
-			// Log the number of currently connected clients
+			// Log the number of currently connected clients and relays
 			numClients := 0
+			numRelays := 0
 			r.Clients.Range(func(key, value interface{}) bool {
 				numClients++
 				return true
 			})
-			logging.LogDebug("Current clients:", map[string]interface{}{
-				"count": numClients,
+			r.LinkedRelays.Range(func(key, value interface{}) bool {
+				numRelays++
+				return true
+			})
+			logging.LogDebug("Current peers:", map[string]interface{}{
+				"clients": numClients,
+				"relays":  numRelays,
 			})
 			// Log each client's information
 			r.Clients.Range(func(key, value interface{}) bool {
@@ -536,6 +541,18 @@ func (r *Relay) LogClientState(ctx context.Context, wg *sync.WaitGroup) {
 						"key":      key, // Client identifier (e.g., IP address)
 						"callsign": client.Callsign,
 						"lastPong": client.LastPong.Format(time.RFC3339),
+					},
+				)
+				return true
+			})
+			// Log each relay's information
+			r.LinkedRelays.Range(func(key, value interface{}) bool {
+				relay := value.(*LinkState)
+				logging.LogDebug("Relay",
+					map[string]interface{}{
+						"key":      key, // Relay identifier (e.g., IP address)
+						"callsign": relay.Callsign,
+						"lastPong": relay.LastPong.Format(time.RFC3339),
 					},
 				)
 				return true

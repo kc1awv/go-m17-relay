@@ -164,9 +164,9 @@ Total: 54 bytes (432 bits)
 - `NewRelay(addr string, callsign string) *Relay`: Initializes a new Relay object.
 - `Listen(ctx context.Context, wg *sync.WaitGroup)`: Starts receiving packets and processes them based on the packet type.
 - `ConnectToRelays(ctx context.Context, wg *sync.WaitGroup)`: Connects to target relays.
-- `PingClients(ctx context.Context, wg *sync.WaitGroup)`: Pings connected clients.
-- `RemoveInactiveClients(ctx context.Context, wg *sync.WaitGroup)`: Removes inactive clients.
-- `LogClientState(ctx context.Context, wg *sync.WaitGroup)`: Logs the state of connected clients.
+- `PingPeers(ctx context.Context, wg *sync.WaitGroup)`: Pings connected peers.
+- `RemoveInactivePeers(ctx context.Context, wg *sync.WaitGroup)`: Removes inactive peers.
+- `LogPeerState(ctx context.Context, wg *sync.WaitGroup)`: Logs the state of connected peers.
 - `sendLinkPacket(targetAddr string) error`: Sends a LINK packet to the specified target address.
 - `sendPing(addr string)`: Sends a PING packet to the specified client.
 - `sendPong(addr *net.UDPAddr, callsign string)`: Sends a PONG packet to the specified address.

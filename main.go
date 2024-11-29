@@ -47,9 +47,9 @@ func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup) {
 	}{
 		{"Listen", r.Listen},
 		{"ConnectToRelays", r.ConnectToRelays},
-		{"PingClients", r.PingClients},
-		{"RemoveInactiveClients", r.RemoveInactiveClients},
-		{"LogClientState", r.LogClientState},
+		{"PingClients", r.PingPeers},
+		{"RemoveInactiveClients", r.RemoveInactivePeers},
+		{"LogClientState", r.LogPeerState},
 	}
 
 	for _, svc := range services {
