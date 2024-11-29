@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"go-m17-relay/config"
 	"go-m17-relay/logging"
+	"go-m17-relay/metrics"
 	"go-m17-relay/relay"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -40,6 +42,12 @@ func validateConfig(cfg *config.Config) error {
 	}
 	if !isValidIPAddress(cfg.BindAddress) {
 		return fmt.Errorf("invalid bind address format")
+	}
+	if cfg.WebInterfaceAddress == "" {
+		return fmt.Errorf("web interface address cannot be empty")
+	}
+	if !isValidIPAddress(cfg.WebInterfaceAddress) {
+		return fmt.Errorf("invalid web interface address format")
 	}
 	for _, relay := range cfg.TargetRelays {
 		if !isValidIPAddress(relay.Address) {
@@ -93,7 +101,8 @@ func main() {
 
 	logging.InitLogLevel(cfg.LogLevel)
 
-	r := relay.NewRelay(cfg.BindAddress, cfg.RelayCallsign, cfg.TargetRelays)
+	mc := metrics.NewMetricsCollector(cfg.RelayCallsign)
+	r := relay.NewRelay(cfg.BindAddress, cfg.RelayCallsign, cfg.TargetRelays, mc)
 	if r == nil {
 		logging.LogError("Failed to start relay", nil)
 		os.Exit(1)
@@ -113,6 +122,15 @@ func main() {
 
 	var wg sync.WaitGroup
 	startServices(ctx, r, &wg)
+
+	http.HandleFunc("/metrics", mc.ServeMetrics)
+	http.HandleFunc("/", mc.ServeWebInterface)
+	go func() {
+		logging.LogInfo("Starting HTTP server on "+cfg.WebInterfaceAddress, nil)
+		if err := http.ListenAndServe(cfg.WebInterfaceAddress, nil); err != nil {
+			logging.LogError("HTTP server error", map[string]interface{}{"error": err})
+		}
+	}()
 
 	<-stop
 	logging.LogInfo("Received shutdown signal", nil)

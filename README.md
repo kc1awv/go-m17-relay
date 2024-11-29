@@ -35,6 +35,9 @@ main.go         - Program Main functions
 config/
     config.go   - Configuration functions
 
+metrics/
+    metrics.go  - Metrics functions
+
 logging/
     logging.go  - Log processing functions
 
@@ -66,6 +69,7 @@ Example config.json:
     "log_level": "debug",
     "relay_callsign": "RLY000001",
     "bind_address": "127.0.0.1:17000",
+    "web_interface_address": "127.0.0.1:8080",
     "target_relays": [
         {
             "callsign": "RLY000002",
@@ -183,6 +187,14 @@ Total: 54 bytes (432 bits)
 - `handlePongPacket(callsign string, addr *net.UDPAddr)`: Processes a PONG packet.
 - `handleDiscPacket(callsign string, addr *net.UDPAddr)`: Processes a DISCONNECT (DISC) packet and removes the client.
 - `relayDataPacket(packet []byte, senderAddr *net.UDPAddr)`: Handles data packets from clients.
+
+### Metrics Functions
+- `NewMetricsCollector(relayCallsign string) *MetricsCollector`: Creates a new MetricsCollector.
+- `UpdateMetrics(clients, relays map[string]PeerInfo)`: Updates the metrics.
+- `GetMetrics() Metrics`: Returns the current metrics.
+- `GetPeerInfo() (clients, relays []PeerInfo)`: Returns the current peer information.
+- `ServeMetrics(w http.ResponseWriter, req *http.Request)`: Serves the metrics as a JSON response.
+- `ServeWebInterface(w http.ResponseWriter, req *http.Request)`: Serves a simple web interface to display the metrics.
 
 ### Logging Functions
 
