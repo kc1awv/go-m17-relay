@@ -5,7 +5,15 @@ This project is an M17 Relay server that handles client connections, relay inter
 
 If you're familiar with how traditional M17 (and other) reflectors work, this is the same idea but keeps it simple with only one 'module' to link to. In fact, an M17 Relay has no concept of modules at all. With that in mind, M17 Relays will accept connections from M17 Clients that still use CONN packets with modules, but the Relay will silently ignore them. All clients connecting to a Relay will be in the same 'room' as it were.
 
-Multiple Relays can be interlinked together. The interlinking concept should be handled as a hub-and-spoke topology. While a mesh topology _could_ be created, this is untested at this time.
+Multiple Relays can be interlinked together. The interlinking concept should be handled as a hub-and-spoke topology. While a mesh topology _could_ be created, it is untested at this time.
+
+## Demo Relay
+A demo relay is hosted at [KC1AWV.net](https://relay.kc1awv.net)
+
+- Hostname: relay.kc1awv.net
+- UDP Client Port: 17000
+
+Since no global list of Relays exists (yet), you will need to manually add the record to your local host file for the client you are using. Refer to the user's guide or documentation for instructions on how to do this with your client.
 
 ## Glossary
 
