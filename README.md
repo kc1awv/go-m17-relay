@@ -67,7 +67,10 @@ Example config.json:
     "relay_callsign": "RLY000001",
     "bind_address": "127.0.0.1:17000",
     "target_relays": [
-        "127.0.0.1:17001"
+        {
+            "callsign": "RLY000002",
+            "address": "127.0.0.1:17001"
+        }
     ]
 }
 ```
