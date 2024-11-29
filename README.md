@@ -10,6 +10,7 @@ Multiple Relays can be interlinked together. The interlinking concept should be 
 ## Demo Relay
 A demo relay is hosted at [KC1AWV.net](https://relay.kc1awv.net)
 
+- Relay Callsign: RLYKC1AWV
 - Hostname: relay.kc1awv.net
 - UDP Client Port: 17000
 
