@@ -1,116 +1,21 @@
 name: Build and Release
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        goos: [linux, windows]
-        goarch: [amd64, arm, arm64]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: 1.18
-
-      - name: Build binary
-        run: |
-          mkdir -p dist
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/go-m17-relay-${{ matrix.goos }}-${{ matrix.goarch }}
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-m17-relay-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/go-m17-relay-${{ matrix.goos }}-${{ matrix.goarch }}
-
   release:
-    needs: build
+    types: [created]
+  
+permissions:
+  contents: write
+  packages: write
+  
+jobs:
+  release-linux-amd64:
+    name: release linux/amd64
     runs-on: ubuntu-latest
     steps:
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: go-m17-relay-linux-amd64
-          path: dist/
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: go-m17-relay-linux-arm
-          path: dist/
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: go-m17-relay-linux-arm64
-          path: dist/
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: go-m17-relay-windows-amd64
-          path: dist/
-
-      - name: Create Release
-        id: create_release
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { data: release } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: context.ref,
-              name: `Release ${context.ref}`,
-              draft: false,
-              prerelease: false,
-            });
-            core.exportVariable('UPLOAD_URL', release.upload_url);
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/go-m17-relay-linux-amd64
-          asset_name: go-m17-relay-linux-amd64
-          asset_content_type: application/octet-stream
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/go-m17-relay-linux-arm
-          asset_name: go-m17-relay-linux-arm
-          asset_content_type: application/octet-stream
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/go-m17-relay-linux-arm64
-          asset_name: go-m17-relay-linux-arm64
-          asset_content_type: application/octet-stream
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/go-m17-relay-windows-amd64
-          asset_name: go-m17-relay-windows-amd64
-          asset_content_type: application/octet-stream
-
-      - name: Upload config.dist
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: config.dist
-          asset_name: config.dist
-          asset_content_type: text/plain
+    - uses: actions/checkout@v4
+    - uses: wangyoucao577/go-release-action@v1
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        goos: linux
+        goarch: amd64
