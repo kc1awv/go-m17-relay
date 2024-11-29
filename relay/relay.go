@@ -21,6 +21,7 @@ import (
 	"context"
 	"go-m17-relay/config"
 	"go-m17-relay/logging"
+	"go-m17-relay/metrics"
 	"net"
 	"sync"
 	"time"
@@ -31,22 +32,27 @@ const (
 )
 
 type ClientState struct {
-	LastPong time.Time
-	Callsign string
+	ConnectedAt    time.Time
+	LastPong       time.Time
+	LastDataPacket time.Time
+	Callsign       string
 }
 
 type LinkState struct {
-	LastPong time.Time
-	Callsign string
+	ConnectedAt    time.Time
+	LastPong       time.Time
+	LastDataPacket time.Time
+	Callsign       string
 }
 
 type Relay struct {
-	Clients       sync.Map
-	LinkedRelays  sync.Map
-	TargetRelays  map[string]string
-	ClientsLock   sync.Mutex
-	Socket        *net.UDPConn
-	RelayCallsign string
+	Clients          sync.Map
+	LinkedRelays     sync.Map
+	TargetRelays     map[string]string
+	ClientsLock      sync.Mutex
+	Socket           *net.UDPConn
+	RelayCallsign    string
+	MetricsCollector *metrics.MetricsCollector
 }
 
 const (
@@ -61,7 +67,7 @@ const (
 	CallsignSize = 6
 )
 
-func NewRelay(addr string, callsign string, targetRelays []config.TargetRelay) *Relay {
+func NewRelay(addr string, callsign string, targetRelays []config.TargetRelay, mc *metrics.MetricsCollector) *Relay {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		logging.LogError("Failed to resolve address:", map[string]interface{}{"err": err})
@@ -81,11 +87,12 @@ func NewRelay(addr string, callsign string, targetRelays []config.TargetRelay) *
 	}
 
 	return &Relay{
-		Clients:       sync.Map{},
-		ClientsLock:   sync.Mutex{},
-		Socket:        conn,
-		RelayCallsign: callsign,
-		TargetRelays:  targetRelaysMap,
+		Clients:          sync.Map{},
+		ClientsLock:      sync.Mutex{},
+		Socket:           conn,
+		RelayCallsign:    callsign,
+		TargetRelays:     targetRelaysMap,
+		MetricsCollector: mc,
 	}
 }
 
@@ -124,6 +131,32 @@ func (r *Relay) Listen(ctx context.Context, wg *sync.WaitGroup) {
 			}
 		}
 	}
+}
+
+func (r *Relay) UpdateMetrics() {
+	clients := make(map[string]metrics.PeerInfo)
+	relays := make(map[string]metrics.PeerInfo)
+	r.Clients.Range(func(key, value interface{}) bool {
+		client := value.(*ClientState)
+		clients[key.(string)] = metrics.PeerInfo{
+			Callsign:       client.Callsign,
+			LastPong:       client.LastPong,
+			ConnectedAt:    client.ConnectedAt,
+			LastDataPacket: client.LastDataPacket,
+		}
+		return true
+	})
+	r.LinkedRelays.Range(func(key, value interface{}) bool {
+		relay := value.(*LinkState)
+		relays[key.(string)] = metrics.PeerInfo{
+			Callsign:       relay.Callsign,
+			LastPong:       relay.LastPong,
+			ConnectedAt:    relay.ConnectedAt,
+			LastDataPacket: relay.LastDataPacket,
+		}
+		return true
+	})
+	r.MetricsCollector.UpdateMetrics(clients, relays)
 }
 
 func (r *Relay) handleControlPacket(data []byte, addr *net.UDPAddr) {
@@ -200,9 +233,11 @@ func (r *Relay) handleConnPacket(callsign string, addr *net.UDPAddr, module byte
 		logging.LogInfo("Accepting connection. Sending ACKN.",
 			map[string]interface{}{"from": addr.String(), "callsign": callsign})
 		r.Clients.Store(addr.String(), &ClientState{
-			LastPong: time.Now(),
-			Callsign: callsign,
+			ConnectedAt: time.Now(),
+			LastPong:    time.Now(),
+			Callsign:    callsign,
 		})
+		r.UpdateMetrics()
 		r.sendPacket(MagicAckn, addr, nil)
 	}
 }
@@ -223,10 +258,12 @@ func (r *Relay) handleLinkPacket(callsign string, addr *net.UDPAddr) {
 	logging.LogInfo("Establishing link with relay", map[string]interface{}{"from": addr.String(), "callsign": callsign})
 
 	r.LinkedRelays.Store(addr.String(), &LinkState{
-		LastPong: time.Now(),
-		Callsign: callsign,
+		ConnectedAt: time.Now(),
+		LastPong:    time.Now(),
+		Callsign:    callsign,
 	})
 
+	r.UpdateMetrics()
 	r.sendPacket(MagicAckn, addr, nil)
 }
 
@@ -240,9 +277,11 @@ func (r *Relay) handleAcknPacket(addr *net.UDPAddr) {
 	logging.LogInfo("Establishing link with relay", map[string]interface{}{"from": addr.String()})
 
 	r.LinkedRelays.Store(addr.String(), &LinkState{
-		LastPong: time.Now(),
-		Callsign: r.RelayCallsign,
+		ConnectedAt: time.Now(),
+		LastPong:    time.Now(),
+		Callsign:    r.RelayCallsign,
 	})
+	r.UpdateMetrics()
 }
 
 func (r *Relay) handlePingPacket(callsign string, addr *net.UDPAddr) {
@@ -255,9 +294,11 @@ func (r *Relay) handlePongPacket(callsign string, addr *net.UDPAddr) {
 	if client, exists := r.Clients.Load(addr.String()); exists {
 		client.(*ClientState).LastPong = time.Now()
 		logging.LogDebug("Received PONG from client", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+		r.UpdateMetrics()
 	} else if relay, exists := r.LinkedRelays.Load(addr.String()); exists {
 		relay.(*LinkState).LastPong = time.Now()
 		logging.LogDebug("Received PONG from relay", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+		r.UpdateMetrics()
 	} else {
 		logging.LogDebug("PONG from unregistered peer", map[string]interface{}{"from": addr.String(), "callsign": callsign})
 	}
@@ -267,6 +308,7 @@ func (r *Relay) handleDiscPacket(callsign string, addr *net.UDPAddr) {
 	if _, exists := r.Clients.Load(addr.String()); exists {
 		r.Clients.Delete(addr.String())
 		logging.LogInfo("Client disconnected.", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+		r.UpdateMetrics()
 
 		encodedCallsign, err := EncodeCallsign(r.RelayCallsign)
 		if err != nil {
@@ -397,6 +439,7 @@ func (r *Relay) RemoveInactivePeers(ctx context.Context, wg *sync.WaitGroup) {
 				if now.Sub(client.LastPong) > 30*time.Second {
 					logging.LogInfo("Removing inactive client", map[string]interface{}{"client": key})
 					r.Clients.Delete(key)
+					r.UpdateMetrics()
 				}
 				return true
 			})
@@ -405,6 +448,7 @@ func (r *Relay) RemoveInactivePeers(ctx context.Context, wg *sync.WaitGroup) {
 				if now.Sub(relay.LastPong) > 30*time.Second {
 					logging.LogInfo("Removing inactive linked relay", map[string]interface{}{"relay": key})
 					r.LinkedRelays.Delete(key)
+					r.UpdateMetrics()
 				}
 				return true
 			})
@@ -558,6 +602,13 @@ func (r *Relay) relayDataPacket(packet []byte, senderAddr *net.UDPAddr) {
 		}
 		return true
 	})
+	// Update the last data packet time for the sender
+	if client, exists := r.Clients.Load(senderAddr.String()); exists {
+		client.(*ClientState).LastDataPacket = time.Now()
+	} else if relay, exists := r.LinkedRelays.Load(senderAddr.String()); exists {
+		relay.(*LinkState).LastDataPacket = time.Now()
+	}
+	r.UpdateMetrics() // Update metrics when a data packet is received
 }
 
 func (r *Relay) Close() error {

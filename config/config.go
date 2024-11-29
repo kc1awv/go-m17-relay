@@ -28,10 +28,11 @@ type TargetRelay struct {
 }
 
 type Config struct {
-	LogLevel      string        `json:"log_level"`
-	RelayCallsign string        `json:"relay_callsign"`
-	BindAddress   string        `json:"bind_address"`
-	TargetRelays  []TargetRelay `json:"target_relays"`
+	LogLevel            string        `json:"log_level"`
+	RelayCallsign       string        `json:"relay_callsign"`
+	BindAddress         string        `json:"bind_address"`
+	WebInterfaceAddress string        `json:"web_interface_address"`
+	TargetRelays        []TargetRelay `json:"target_relays"`
 }
 
 func LoadConfig(path string) (*Config, error) {
