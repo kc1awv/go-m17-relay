@@ -20,7 +20,7 @@ An end "user". Some client programs include:
 This program. Relays connect M17 Clients or other M17 Relays to each other and passes data between them.
 
 ### Peer
-Either a Clent or a Relay. Peer is a general term used for anything connecting to a Relay.
+Either a Client or a Relay. Peer is a general term used for anything connecting to a Relay.
 
 ### Control Packet
 Packets sent or received by Peers to or from a Relay for creating, maintaining, and tearing down connections to each other.
