@@ -3,7 +3,7 @@
 ## Overview
 This project is an M17 Relay server that handles client connections, relay interlinks, and communication between them over UDP. It supports various packet types for managing connections, relays, and client states.
 
-If you're familiar with how traditional M17 (and other) relfectors work, this is the same idea but keeps it simple with only one 'module' to link to. In fact, an M17 Relay has no concept of modules at all. With that in mind, M17 Relays will accept connections from M17 Clients that still use CONN packets with modules, but the Relay will silently ignore them. All clients connecting to a Relay will be in the same 'room' as it were.
+If you're familiar with how traditional M17 (and other) reflectors work, this is the same idea but keeps it simple with only one 'module' to link to. In fact, an M17 Relay has no concept of modules at all. With that in mind, M17 Relays will accept connections from M17 Clients that still use CONN packets with modules, but the Relay will silently ignore them. All clients connecting to a Relay will be in the same 'room' as it were.
 
 Multiple Relays can be interlinked together. The interlinking concept should be handled as a hub-and-spoke topology. While a mesh topology _could_ be created, this is untested at this time.
 
