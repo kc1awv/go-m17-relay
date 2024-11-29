@@ -26,7 +26,7 @@ Either a Client or a Relay. Peer is a general term used for anything connecting 
 Packets sent or received by Peers to or from a Relay for creating, maintaining, and tearing down connections to each other.
 
 ### Data Packet
-Packets sent by Clients to a Relay for distribution to other Peers. Data packets may contain M17 voice stream or packet data.
+Packets sent by Clients to a Relay for distribution to other Peers. Data packets may contain M17 voice stream or (in the future) packet data.
 
 ## Project Structure
 ```
