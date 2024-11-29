@@ -11,13 +11,8 @@ jobs:
 
     strategy:
       matrix:
-        goos: [linux, windows, darwin]
+        goos: [linux, windows]
         goarch: [amd64, arm, arm64]
-        exclude:
-          - goos: darwin
-            goarch: arm
-          - goos: darwin
-            goarch: arm64
 
     steps:
       - name: Checkout code
@@ -63,11 +58,6 @@ jobs:
         with:
           name: go-m17-relay-windows-amd64
           path: dist/
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: go-m17-relay-darwin-amd64
-          path: dist/
 
       - name: Create Release
         id: create_release
@@ -75,7 +65,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { data: release } = await github.repos.createRelease({
+            const { data: release } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: context.ref,
@@ -83,12 +73,12 @@ jobs:
               draft: false,
               prerelease: false,
             });
-            fs.writeFileSync(process.env.GITHUB_ENV, `UPLOAD_URL=${release.upload_url}\n`);
+            core.exportVariable('UPLOAD_URL', release.upload_url);
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ env.UPLOAD_URL }}
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/go-m17-relay-linux-amd64
           asset_name: go-m17-relay-linux-amd64
           asset_content_type: application/octet-stream
@@ -96,7 +86,7 @@ jobs:
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ env.UPLOAD_URL }}
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/go-m17-relay-linux-arm
           asset_name: go-m17-relay-linux-arm
           asset_content_type: application/octet-stream
@@ -104,7 +94,7 @@ jobs:
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ env.UPLOAD_URL }}
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/go-m17-relay-linux-arm64
           asset_name: go-m17-relay-linux-arm64
           asset_content_type: application/octet-stream
@@ -112,23 +102,15 @@ jobs:
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ env.UPLOAD_URL }}
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/go-m17-relay-windows-amd64
           asset_name: go-m17-relay-windows-amd64
-          asset_content_type: application/octet-stream
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ env.UPLOAD_URL }}
-          asset_path: dist/go-m17-relay-darwin-amd64
-          asset_name: go-m17-relay-darwin-amd64
           asset_content_type: application/octet-stream
 
       - name: Upload config.dist
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ env.UPLOAD_URL }}
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: config.dist
           asset_name: config.dist
           asset_content_type: text/plain
