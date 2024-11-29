@@ -22,11 +22,16 @@ import (
 	"os"
 )
 
+type TargetRelay struct {
+	Callsign string `json:"callsign"`
+	Address  string `json:"address"`
+}
+
 type Config struct {
-	LogLevel      string   `json:"log_level"`
-	RelayCallsign string   `json:"relay_callsign"`
-	BindAddress   string   `json:"bind_address"`
-	TargetRelays  []string `json:"target_relays"`
+	LogLevel      string        `json:"log_level"`
+	RelayCallsign string        `json:"relay_callsign"`
+	BindAddress   string        `json:"bind_address"`
+	TargetRelays  []TargetRelay `json:"target_relays"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -36,12 +41,11 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	defer file.Close()
 
+	var cfg Config
 	decoder := json.NewDecoder(file)
-	config := &Config{}
-	err = decoder.Decode(config)
-	if err != nil {
+	if err := decoder.Decode(&cfg); err != nil {
 		return nil, err
 	}
 
-	return config, nil
+	return &cfg, nil
 }

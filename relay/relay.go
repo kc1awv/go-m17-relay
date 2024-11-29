@@ -19,6 +19,7 @@ package relay
 
 import (
 	"context"
+	"go-m17-relay/config"
 	"go-m17-relay/logging"
 	"net"
 	"sync"
@@ -46,12 +47,12 @@ type LinkState struct {
 // Relay represents the M17 relay server, handling client connections and
 // communication.
 type Relay struct {
-	Clients       sync.Map     // Holds all currently connected clients, keyed by their IP address.
-	LinkedRelays  sync.Map     // Holds all linked relays, keyed by their IP address.
-	TargetRelays  []string     // List of target relays to connect to
-	ClientsLock   sync.Mutex   // Mutex for managing access to the Clients map.
-	Socket        *net.UDPConn // UDP socket used for communication with clients.
-	RelayCallsign string       // Callsign of the relay itself.
+	Clients       sync.Map          // Holds all currently connected clients, keyed by their IP address.
+	LinkedRelays  sync.Map          // Holds all linked relays, keyed by their IP address.
+	TargetRelays  map[string]string // Map of target relay callsigns to addresses
+	ClientsLock   sync.Mutex        // Mutex for managing access to the Clients map.
+	Socket        *net.UDPConn      // UDP socket used for communication with clients.
+	RelayCallsign string            // Callsign of the relay itself.
 }
 
 // Constants for packet types and sizes.
@@ -68,7 +69,7 @@ const (
 )
 
 // NewRelay initializes a new Relay object, listening on the given address.
-func NewRelay(addr string, callsign string) *Relay {
+func NewRelay(addr string, callsign string, targetRelays []config.TargetRelay) *Relay {
 	// Resolve the UDP address.
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
@@ -84,12 +85,19 @@ func NewRelay(addr string, callsign string) *Relay {
 
 	logging.LogInfo("Relay is listening on:", map[string]interface{}{"addr": addr})
 
+	// Initialize the target relays map
+	targetRelaysMap := make(map[string]string)
+	for _, relay := range targetRelays {
+		targetRelaysMap[relay.Callsign] = relay.Address
+	}
+
 	// Return a new Relay object with the given parameters.
 	return &Relay{
 		Clients:       sync.Map{},
 		ClientsLock:   sync.Mutex{},
 		Socket:        conn,
 		RelayCallsign: callsign,
+		TargetRelays:  targetRelaysMap,
 	}
 }
 
@@ -222,6 +230,14 @@ func (r *Relay) handleLinkPacket(callsign string, addr *net.UDPAddr) {
 	// Check if the relay is already linked
 	if _, exists := r.LinkedRelays.Load(addr.String()); exists {
 		logging.LogInfo("Relay is already linked", map[string]interface{}{"from": addr.String()})
+		return
+	}
+
+	// Validate the callsign and address
+	expectedAddr, exists := r.TargetRelays[callsign]
+	if !exists || expectedAddr != addr.String() {
+		logging.LogInfo("Invalid LINK packet", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+		r.sendPacket(MagicNack, addr, nil)
 		return
 	}
 

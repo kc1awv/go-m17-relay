@@ -77,14 +77,13 @@ func main() {
 	logging.InitLogLevel(cfg.LogLevel)
 
 	// Initialize relay
-	r := relay.NewRelay(cfg.BindAddress, cfg.RelayCallsign)
+	r := relay.NewRelay(cfg.BindAddress, cfg.RelayCallsign, cfg.TargetRelays)
 	if r == nil {
 		logging.LogError("Failed to start relay", nil)
 		os.Exit(1)
 	}
 	defer r.Close()
 
-	r.TargetRelays = cfg.TargetRelays
 	logging.LogInfo("Relay initialized", map[string]interface{}{
 		"callsign": cfg.RelayCallsign,
 		"targets":  cfg.TargetRelays,
