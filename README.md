@@ -197,7 +197,7 @@ Total: 54 bytes (432 bits)
 - `NewMetricsCollector(relayCallsign string) *MetricsCollector`: Creates a new MetricsCollector.
 - `UpdateMetrics(clients, relays map[string]PeerInfo)`: Updates the metrics.
 - `GetMetrics() Metrics`: Returns the current metrics.
-- `InitializeHTTPServer`: Initializes and starts the HTTP server.
+- `InitializeHTTPServer(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config)`: Initializes and starts the HTTP server.
 - `ServeMetrics(w http.ResponseWriter, req *http.Request)`: Serves the metrics as a JSON response.
 - `ServeWebInterface(w http.ResponseWriter, req *http.Request)`: Serves a simple web interface to display the metrics.
 
