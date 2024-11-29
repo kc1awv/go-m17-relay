@@ -157,6 +157,7 @@ Total: 54 bytes (432 bits)
 
 - `main()`: The entry point of the application. It loads the configuration, initializes the relay, and starts the services.
 - `validateConfig(cfg *config.Config) error`: Validates the configuration.
+- `isValidIPAddress(addr string)`: Validates bind and target relay addresses.
 - `startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup)`: Starts the relay services.
 
 ### Relay Functions

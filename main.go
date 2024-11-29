@@ -23,6 +23,7 @@ import (
 	"go-m17-relay/config"
 	"go-m17-relay/logging"
 	"go-m17-relay/relay"
+	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -37,7 +38,24 @@ func validateConfig(cfg *config.Config) error {
 	if cfg.BindAddress == "" {
 		return fmt.Errorf("bind address cannot be empty")
 	}
+	if !isValidIPAddress(cfg.BindAddress) {
+		return fmt.Errorf("invalid bind address format")
+	}
+	for _, relay := range cfg.TargetRelays {
+		if !isValidIPAddress(relay.Address) {
+			return fmt.Errorf("invalid target relay address: %s", relay.Address)
+		}
+	}
 	return nil
+}
+
+func isValidIPAddress(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil
 }
 
 func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup) {
@@ -47,9 +65,9 @@ func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup) {
 	}{
 		{"Listen", r.Listen},
 		{"ConnectToRelays", r.ConnectToRelays},
-		{"PingClients", r.PingPeers},
-		{"RemoveInactiveClients", r.RemoveInactivePeers},
-		{"LogClientState", r.LogPeerState},
+		{"PingPeers", r.PingPeers},
+		{"RemoveInactivePeers", r.RemoveInactivePeers},
+		{"LogPeerState", r.LogPeerState},
 	}
 
 	for _, svc := range services {
@@ -62,7 +80,6 @@ func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup) {
 }
 
 func main() {
-	// Load configuration
 	cfg, err := config.LoadConfig("config.json")
 	if err != nil {
 		logging.LogError("Failed to load configuration", map[string]interface{}{"error": err})
@@ -76,7 +93,6 @@ func main() {
 
 	logging.InitLogLevel(cfg.LogLevel)
 
-	// Initialize relay
 	r := relay.NewRelay(cfg.BindAddress, cfg.RelayCallsign, cfg.TargetRelays)
 	if r == nil {
 		logging.LogError("Failed to start relay", nil)
@@ -89,24 +105,19 @@ func main() {
 		"targets":  cfg.TargetRelays,
 	})
 
-	// Setup shutdown context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Setup graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start services
 	var wg sync.WaitGroup
 	startServices(ctx, r, &wg)
 
-	// Wait for shutdown signal
 	<-stop
 	logging.LogInfo("Received shutdown signal", nil)
 	cancel()
 
-	// Wait for graceful shutdown with timeout
 	shutdownComplete := make(chan struct{})
 	go func() {
 		wg.Wait()
