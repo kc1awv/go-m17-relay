@@ -60,6 +60,7 @@ The configuration file should include the following fields:
 - `log_level`: The logging level (e.g., "debug", "info", "warn", "error").
 - `relay_callsign`: The 'callsign' of the relay.
 - `bind_address`: The address to bind the UDP socket to.
+- `web_interface_address`: The address to bind the web interface to.
 - `target_relays`: A list of target relay addresses to connect to.
 
 Example config.json:
