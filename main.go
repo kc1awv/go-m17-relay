@@ -31,6 +31,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/sevlyar/go-daemon"
 )
 
 func validateConfig(cfg *config.Config) error {
@@ -100,6 +102,29 @@ func main() {
 	}
 
 	logging.InitLogLevel(cfg.LogLevel)
+
+	if cfg.DaemonMode {
+		cntxt := &daemon.Context{
+			PidFileName: "m17-relay.pid",
+			PidFilePerm: 0644,
+			LogFileName: "m17-relay.log",
+			LogFilePerm: 0640,
+			WorkDir:     "./",
+			Umask:       027,
+			Args:        []string{"[m17-relay]"},
+		}
+
+		d, err := cntxt.Reborn()
+		if err != nil {
+			logging.LogError("Failed to daemonize", map[string]interface{}{"error": err})
+			os.Exit(1)
+		}
+		if d != nil {
+			return
+		}
+		defer cntxt.Release()
+		logging.LogInfo("Daemon started", nil)
+	}
 
 	mc := metrics.NewMetricsCollector(cfg.RelayCallsign)
 	r := relay.NewRelay(cfg.BindAddress, cfg.RelayCallsign, cfg.TargetRelays, mc)

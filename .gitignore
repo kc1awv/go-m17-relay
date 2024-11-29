@@ -17,5 +17,6 @@ go.work
 .history
 .ionide
 *.log
+*.pid
 config.json
 go-m17-relay
