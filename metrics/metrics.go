@@ -18,8 +18,11 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 package metrics
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"go-m17-relay/config"
+	"go-m17-relay/logging"
 	"net/http"
 	"sort"
 	"sync"
@@ -112,6 +115,35 @@ func (mc *MetricsCollector) GetMetrics() Metrics {
 		NumRelays:  len(mc.relays),
 		Clients:    clients,
 		Relays:     relays,
+	}
+}
+
+// InitializeHTTPServer initializes and starts the HTTP server.
+func (mc *MetricsCollector) InitializeHTTPServer(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config) {
+	defer wg.Done()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/metrics", mc.ServeMetrics)
+	mux.HandleFunc("/", mc.ServeWebInterface)
+
+	server := &http.Server{
+		Addr:    cfg.WebInterfaceAddress,
+		Handler: mux,
+	}
+
+	go func() {
+		<-ctx.Done()
+		logging.LogInfo("Shutting down HTTP server...", nil)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logging.LogError("HTTP server shutdown error", map[string]interface{}{"error": err})
+		}
+	}()
+
+	logging.LogInfo("Starting HTTP server on "+cfg.WebInterfaceAddress, nil)
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		logging.LogError("HTTP server error", map[string]interface{}{"error": err})
 	}
 }
 

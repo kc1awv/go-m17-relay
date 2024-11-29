@@ -19,13 +19,13 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"go-m17-relay/config"
 	"go-m17-relay/logging"
 	"go-m17-relay/metrics"
 	"go-m17-relay/relay"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -35,6 +35,7 @@ import (
 	"github.com/sevlyar/go-daemon"
 )
 
+// validateConfig validates the configuration.
 func validateConfig(cfg *config.Config) error {
 	if len(cfg.RelayCallsign) > 9 {
 		return fmt.Errorf("relay callsign must be 9 characters or less")
@@ -59,6 +60,7 @@ func validateConfig(cfg *config.Config) error {
 	return nil
 }
 
+// isValidIPAddress validates the IP address format.
 func isValidIPAddress(addr string) bool {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -68,7 +70,8 @@ func isValidIPAddress(addr string) bool {
 	return ip != nil
 }
 
-func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup) {
+// startServices starts the relay services.
+func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup, cfg *config.Config, mc *metrics.MetricsCollector) {
 	services := []struct {
 		name string
 		fn   func(context.Context, *sync.WaitGroup)
@@ -87,9 +90,15 @@ func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup) {
 			fn(ctx, wg)
 		}(svc.name, svc.fn)
 	}
+
+	// Initialize and start the HTTP server
+	wg.Add(1)
+	go mc.InitializeHTTPServer(ctx, wg, cfg)
 }
 
 func main() {
+	flag.Parse()
+
 	cfg, err := config.LoadConfig("config.json")
 	if err != nil {
 		logging.LogError("Failed to load configuration", map[string]interface{}{"error": err})
@@ -141,21 +150,11 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-
 	var wg sync.WaitGroup
-	startServices(ctx, r, &wg)
 
-	http.HandleFunc("/metrics", mc.ServeMetrics)
-	http.HandleFunc("/", mc.ServeWebInterface)
-	go func() {
-		logging.LogInfo("Starting HTTP server on "+cfg.WebInterfaceAddress, nil)
-		if err := http.ListenAndServe(cfg.WebInterfaceAddress, nil); err != nil {
-			logging.LogError("HTTP server error", map[string]interface{}{"error": err})
-		}
-	}()
+	startServices(ctx, r, &wg, cfg, mc)
 
 	<-stop
 	logging.LogInfo("Received shutdown signal", nil)
