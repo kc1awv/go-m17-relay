@@ -29,7 +29,7 @@ jobs:
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dist/go-m17-relay-${{ matrix.goos }}-${{ matrix.goarch }}
 
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: go-m17-relay-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/go-m17-relay-${{ matrix.goos }}-${{ matrix.goarch }}
@@ -39,27 +39,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: go-m17-relay-linux-amd64
           path: dist/
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: go-m17-relay-linux-arm
           path: dist/
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: go-m17-relay-linux-arm64
           path: dist/
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: go-m17-relay-windows-amd64
           path: dist/
       - name: Download binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: go-m17-relay-darwin-amd64
           path: dist/
