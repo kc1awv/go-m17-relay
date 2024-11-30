@@ -36,6 +36,7 @@ type ClientState struct {
 	LastPong       time.Time
 	LastDataPacket time.Time
 	Callsign       string
+	ListenOnly     bool
 }
 
 type LinkState struct {
@@ -59,6 +60,7 @@ const (
 	PacketSize   = 10
 	MagicConn    = "CONN"
 	MagicLink    = "LINK"
+	MagicLstn    = "LSTN"
 	MagicAckn    = "ACKN"
 	MagicNack    = "NACK"
 	MagicPing    = "PING"
@@ -185,6 +187,13 @@ func (r *Relay) handleControlPacket(data []byte, addr *net.UDPAddr) {
 		}
 		callsign := DecodeCallsign(data[4:10])
 		r.handleLinkPacket(callsign, addr)
+	case MagicLstn:
+		if len(data) < PacketSize {
+			logging.LogDebug("Invalid LSTN packet length", map[string]interface{}{"from": addr.String()})
+			return
+		}
+		callsign := DecodeCallsign(data[4:10])
+		r.handleLstnPacket(callsign, addr)
 	case MagicAckn:
 		if len(data) < 4 {
 			logging.LogDebug("Invalid ACKN packet length", map[string]interface{}{"from": addr.String()})
@@ -236,6 +245,7 @@ func (r *Relay) handleConnPacket(callsign string, addr *net.UDPAddr, module byte
 			ConnectedAt: time.Now(),
 			LastPong:    time.Now(),
 			Callsign:    callsign,
+			ListenOnly:  false,
 		})
 		r.UpdateMetrics()
 		r.sendPacket(MagicAckn, addr, nil)
@@ -265,6 +275,26 @@ func (r *Relay) handleLinkPacket(callsign string, addr *net.UDPAddr) {
 
 	r.UpdateMetrics()
 	r.sendPacket(MagicAckn, addr, nil)
+}
+
+// handleLstnPacket processes a listen-only connection request (LSTN packet).
+func (r *Relay) handleLstnPacket(callsign string, addr *net.UDPAddr) {
+	logging.LogDebug("Received listen-only connection request", map[string]interface{}{"from": addr.String(), "callsign": callsign})
+	if _, exists := r.Clients.Load(addr.String()); exists {
+		logging.LogInfo("Client is already connected. Sending NACK.", map[string]interface{}{"from": addr.String()})
+		r.sendPacket(MagicNack, addr, nil)
+	} else {
+		logging.LogInfo("Accepting listen-only connection. Sending ACKN.",
+			map[string]interface{}{"from": addr.String(), "callsign": callsign})
+		r.Clients.Store(addr.String(), &ClientState{
+			ConnectedAt: time.Now(),
+			LastPong:    time.Now(),
+			Callsign:    callsign,
+			ListenOnly:  true,
+		})
+		r.UpdateMetrics()
+		r.sendPacket(MagicAckn, addr, nil)
+	}
 }
 
 func (r *Relay) handleAcknPacket(addr *net.UDPAddr) {
@@ -566,6 +596,14 @@ func (r *Relay) LogPeerState(ctx context.Context, wg *sync.WaitGroup) {
 
 func (r *Relay) relayDataPacket(packet []byte, senderAddr *net.UDPAddr) {
 	logging.LogDebug("Relaying data packet to other clients", map[string]interface{}{"from": senderAddr})
+
+	// Check if the sender is a listen-only client
+	if client, exists := r.Clients.Load(senderAddr.String()); exists {
+		if client.(*ClientState).ListenOnly {
+			logging.LogDebug("Ignoring data packet from listen-only client", map[string]interface{}{"from": senderAddr})
+			return
+		}
+	}
 
 	r.Clients.Range(func(key, value interface{}) bool {
 		addr := key.(string)
