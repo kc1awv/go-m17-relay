@@ -114,6 +114,14 @@ Example config.json:
 | 0-3  | 4 bytes | Magic - ASCII "LINK"                                                                                             |
 | 4-9  | 6 bytes | 'from' callsign as encoded per [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A)   |
 
+### `LSTN`
+#### Listen request packet. Sent by a listen-only client to link with a Relay.
+
+| Byte | Size    | Purpose                                                                                                          |
+-------|---------|-------------------------------------------------------------------------------------------------------------------
+| 0-3  | 4 bytes | Magic - ASCII "LSTN"                                                                                             |
+| 4-9  | 6 bytes | 'from' callsign as encoded per [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A)   |
+
 ### `ACKN`
 #### Acknowledgment packet. Used to acknowledge a successful `CONN` or `LINK`.
 
@@ -196,6 +204,7 @@ Total: 54 bytes (432 bits)
 - `handleControlPacket(data []byte, addr *net.UDPAddr)`: Processes incoming control packets.
 - `handleConnPacket(callsign string, addr *net.UDPAddr, module byte)`: Processes a connection request (CONN packet).
 - `handleLinkPacket(callsign string, addr *net.UDPAddr)`: Processes a link request (LINK packet).
+- `handleLstnPacket(callsign string, addr *net.UDPAddr)`: Processes a listen request (LSTN packet).
 - `handleAcknPacket(addr *net.UDPAddr)`: Processes an acknowledgment (ACKN) packet.
 - `handlePingPacket(callsign string, addr *net.UDPAddr)`: Processes a PING packet and responds with a PONG packet.
 - `handlePongPacket(callsign string, addr *net.UDPAddr)`: Processes a PONG packet.
