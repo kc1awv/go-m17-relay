@@ -21,6 +21,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"go-m17-relay/callhome"
 	"go-m17-relay/config"
 	"go-m17-relay/logging"
 	"go-m17-relay/metrics"
@@ -94,6 +95,12 @@ func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup, cfg 
 	// Initialize and start the HTTP server
 	wg.Add(1)
 	go mc.InitializeHTTPServer(ctx, wg, cfg)
+
+	// Start periodic call-home if enabled
+	if cfg.CallHomeEnabled {
+		wg.Add(1)
+		go callhome.StartPeriodicCallHome(ctx, wg, cfg)
+	}
 }
 
 func main() {

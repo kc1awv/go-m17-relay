@@ -33,6 +33,8 @@ type Config struct {
 	BindAddress         string        `json:"bind_address"`
 	WebInterfaceAddress string        `json:"web_interface_address"`
 	DaemonMode          bool          `json:"daemon_mode"`
+	UUID                string        `json:"uuid"`
+	CallHomeEnabled     bool          `json:"call_home_enabled"`
 	TargetRelays        []TargetRelay `json:"target_relays"`
 }
 

@@ -4,6 +4,8 @@
     "bind_address": "127.0.0.1:17000",
     "web_interface_address": "127.0.0.1:8080",
     "daemon_mode": true,
+    "uuid": "your-unique-id",
+    "call_home_enabled": true,
     "target_relays": [
         {
             "callsign": "RLY000002",
