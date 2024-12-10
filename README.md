@@ -54,6 +54,9 @@ relay/
     encoding.go - M17 base-40 address encoding
     relay.go    - Relay functions
 
+callhome/
+    callhome.go - Call-home functions
+
 config.dist     - Example configuration file
 go.mod          - Go modules
 go.sum          - Go module checksums
@@ -71,6 +74,8 @@ The configuration file should include the following fields:
 - `bind_address`: (`STRING`) The address and port to bind the UDP socket to.
 - `web_interface_address`: (`STRING`) The address and port to bind the web interface to.
 - `daemon_mode`: (`BOOL`) Daemonize the relay to run in the background.
+- `uuid`: (`STRING`) The unique identifier for the relay. This will be generated and updated by the call-home service if not provided.
+- `call_home_enabled`: (`BOOL`) Enable or disable the call-home service.
 - `target_relays`: (`ARRAY`) A list of target relay addresses to connect to.
   - `callsign`: (`STRING`) 'Callsign' of the relay to connect to.
   - `address`: (`STRING`) Address and port of the relay to connect to.
@@ -84,6 +89,8 @@ Example config.json:
     "bind_address": "127.0.0.1:17000",
     "web_interface_address": "127.0.0.1:8080",
     "daemon_mode": true,
+    "uuid": "",
+    "call_home_enabled": true,
     "target_relays": [
         {
             "callsign": "RLY000002",
@@ -92,6 +99,46 @@ Example config.json:
     ]
 }
 ```
+
+## Call-Home Service
+
+The call-home service allows the relay to periodically update its status and configuration with a central server. This service can be enabled or disabled via the `call_home_enabled` configuration option.
+
+### How It Works
+
+ 0. **Information Gathering**: The relay will parse this information from the configuration file:
+   
+   - Relay callsign
+   - Relay listening port
+   - Relay UUID (if provided)
+
+   The relay will also call out to a third-party service (`icanhazip.com` for now, this may change later) to determine your public IP address, since the `bind_address` in the config may be set to all (i.e. 0.0.0.0).
+
+ 1. **Initial Call-Home**: The relay will send an initial call-home request on startup.
+ 2. **Periodic Updates**: The relay will send periodic updates every 7.5 minutes with a random delay within each interval.
+
+### Configuration Fields
+
+- `uuid`: The unique identifier for the relay. If not provided, it will be generated and updated by the call-home service.
+- `call_home_enabled`: Enable or disable the call-home service.
+
+### Example Call-Home Payload
+
+```json
+{
+    "uuid": "87886fd8-0b28-47af-9580-cf0a1350a5ea",
+    "callsign": "KC1AWV",
+    "ip_address": "192.168.1.120",
+    "udp_port": 17000,
+    "status": true
+}
+```
+### Headers
+
+The call-home request includes the following headers:
+
+- `Content-Type`: `application/json`
+- `X-Relay-Program`: `go-m17-relay_v0.0.1`
 
 ## Packet Types
 

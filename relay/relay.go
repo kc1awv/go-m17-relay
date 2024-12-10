@@ -107,7 +107,7 @@ func (r *Relay) Listen(ctx context.Context, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-ctx.Done():
-			logging.LogInfo("Listen: Received shutdown signal, stopping...", nil)
+			logging.LogInfo("Listen: Shutdown signal received, stopping...", nil)
 			return
 		default:
 			r.Socket.SetReadDeadline(time.Now().Add(1 * time.Second))
