@@ -88,7 +88,7 @@ func CallHome(ctx context.Context, cfg *config.Config) {
 	}
 
 	// Log the request payload
-	logging.LogInfo("Request payload", map[string]interface{}{
+	logging.LogDebug("Request payload", map[string]interface{}{
 		"payload": string(jsonData),
 	})
 
@@ -102,7 +102,7 @@ func CallHome(ctx context.Context, cfg *config.Config) {
 	req.Header.Set("X-Relay-Program", "go-m17-relay_v0.0.1")
 
 	// Log the headers to verify they are set correctly
-	logging.LogInfo("Request headers", map[string]interface{}{
+	logging.LogDebug("Request headers", map[string]interface{}{
 		"Content-Type":    req.Header.Get("Content-Type"),
 		"X-Relay-Program": req.Header.Get("X-Relay-Program"),
 	})
@@ -122,10 +122,10 @@ func CallHome(ctx context.Context, cfg *config.Config) {
 		return
 	}
 
-	logging.LogInfo("Response status", map[string]interface{}{
+	logging.LogDebug("Response status", map[string]interface{}{
 		"status_code": resp.StatusCode,
 	})
-	logging.LogInfo("Response body", map[string]interface{}{
+	logging.LogDebug("Response body", map[string]interface{}{
 		"body": string(respBody),
 	})
 
@@ -147,7 +147,7 @@ func CallHome(ctx context.Context, cfg *config.Config) {
 		}
 	}
 
-	logging.LogInfo("Call-home request succeeded", nil)
+	logging.LogDebug("Call-home request succeeded", nil)
 }
 
 func saveConfig(cfg *config.Config) error {
