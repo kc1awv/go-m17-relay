@@ -54,6 +54,7 @@ type Relay struct {
 	Socket           *net.UDPConn
 	RelayCallsign    string
 	MetricsCollector *metrics.MetricsCollector
+	StartTime        time.Time
 }
 
 const (
@@ -65,10 +66,12 @@ const (
 	MagicNack    = "NACK"
 	MagicPing    = "PING"
 	MagicPong    = "PONG"
+	MagicInfo    = "INFO"
 	MagicDisc    = "DISC"
 	CallsignSize = 6
 )
 
+// NewRelay creates a new Relay instance.
 func NewRelay(addr string, callsign string, targetRelays []config.TargetRelay, mc *metrics.MetricsCollector) *Relay {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
@@ -95,9 +98,11 @@ func NewRelay(addr string, callsign string, targetRelays []config.TargetRelay, m
 		RelayCallsign:    callsign,
 		TargetRelays:     targetRelaysMap,
 		MetricsCollector: mc,
+		StartTime:        time.Now(),
 	}
 }
 
+// Listen listens for incoming packets and processes them.
 func (r *Relay) Listen(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	buf := make([]byte, 64)
@@ -135,6 +140,7 @@ func (r *Relay) Listen(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
+// UpdateMetrics updates the metrics collector with the current state of connected clients and relays.
 func (r *Relay) UpdateMetrics() {
 	clients := make(map[string]metrics.PeerInfo)
 	relays := make(map[string]metrics.PeerInfo)
@@ -161,6 +167,7 @@ func (r *Relay) UpdateMetrics() {
 	r.MetricsCollector.UpdateMetrics(clients, relays)
 }
 
+// handleControlPacket processes a control packet.
 func (r *Relay) handleControlPacket(data []byte, addr *net.UDPAddr) {
 	if len(data) < 4 {
 		logging.LogDebug("Packet too short", map[string]interface{}{"from": addr.String()})
@@ -214,6 +221,12 @@ func (r *Relay) handleControlPacket(data []byte, addr *net.UDPAddr) {
 		}
 		callsign := DecodeCallsign(data[4:10])
 		r.handlePongPacket(callsign, addr)
+	case MagicInfo:
+		if len(data) < 5 || data[4] != '?' {
+			logging.LogDebug("Invalid INFO? packet", map[string]interface{}{"from": addr.String()})
+			return
+		}
+		r.handleInfoPacket(addr)
 	case MagicDisc:
 		if len(data) < PacketSize {
 			logging.LogDebug("Invalid DISC packet length", map[string]interface{}{"from": addr.String()})
@@ -226,6 +239,7 @@ func (r *Relay) handleControlPacket(data []byte, addr *net.UDPAddr) {
 	}
 }
 
+// handleConnPacket processes a connection request (CONN packet).
 func (r *Relay) handleConnPacket(callsign string, addr *net.UDPAddr, module byte) {
 	if module != 0 {
 		logging.LogDebug("Received connection request with module (We don't need no stinkin' modules.)",
@@ -252,6 +266,7 @@ func (r *Relay) handleConnPacket(callsign string, addr *net.UDPAddr, module byte
 	}
 }
 
+// handleLinkPacket processes a link request (LINK packet).
 func (r *Relay) handleLinkPacket(callsign string, addr *net.UDPAddr) {
 	if _, exists := r.LinkedRelays.Load(addr.String()); exists {
 		logging.LogInfo("Relay is already linked", map[string]interface{}{"from": addr.String()})
@@ -297,6 +312,7 @@ func (r *Relay) handleLstnPacket(callsign string, addr *net.UDPAddr) {
 	}
 }
 
+// handleAcknPacket processes an ACKN packet, which is sent by a relay to acknowledge a link request.
 func (r *Relay) handleAcknPacket(addr *net.UDPAddr) {
 	logging.LogDebug("Received ACKN packet", map[string]interface{}{"from": addr.String()})
 	if _, exists := r.LinkedRelays.Load(addr.String()); exists {
@@ -314,12 +330,14 @@ func (r *Relay) handleAcknPacket(addr *net.UDPAddr) {
 	r.UpdateMetrics()
 }
 
+// handlePingPacket processes a PING packet.
 func (r *Relay) handlePingPacket(callsign string, addr *net.UDPAddr) {
 	logging.LogDebug("Received PING packet", map[string]interface{}{"from": addr.String(), "callsign": callsign})
 	logging.LogDebug("Responding with PONG packet", map[string]interface{}{"to": addr.String(), "callsign": callsign})
 	r.sendPong(addr, callsign)
 }
 
+// handlePongPacket processes a PONG packet.
 func (r *Relay) handlePongPacket(callsign string, addr *net.UDPAddr) {
 	if client, exists := r.Clients.Load(addr.String()); exists {
 		client.(*ClientState).LastPong = time.Now()
@@ -334,6 +352,57 @@ func (r *Relay) handlePongPacket(callsign string, addr *net.UDPAddr) {
 	}
 }
 
+// handleInfoPacket processes an INFO? packet.
+func (r *Relay) handleInfoPacket(addr *net.UDPAddr) {
+	uptime := uint32(time.Since(r.StartTime).Seconds())
+	numClients := uint16(0)
+	numRelays := uint16(0)
+
+	r.Clients.Range(func(_, _ interface{}) bool {
+		numClients++
+		return true
+	})
+	r.LinkedRelays.Range(func(_, _ interface{}) bool {
+		numRelays++
+		return true
+	})
+
+	encodedCallsign, err := EncodeCallsign(r.RelayCallsign)
+	if err != nil {
+		logging.LogError("Failed to encode relay callsign", map[string]interface{}{"err": err})
+		return
+	}
+
+	packet := make([]byte, 18)
+	copy(packet[:4], []byte(MagicInfo))
+	copy(packet[4:10], encodedCallsign)
+	copy(packet[10:14], uint32ToBytes(uptime))
+	copy(packet[14:16], uint16ToBytes(numClients))
+	copy(packet[16:18], uint16ToBytes(numRelays))
+
+	_, err = r.Socket.WriteToUDP(packet, addr)
+	if err != nil {
+		logging.LogError("Failed to send INFO packet", map[string]interface{}{"to": addr.String(), "err": err})
+	}
+}
+
+func uint32ToBytes(value uint32) []byte {
+	return []byte{
+		byte(value >> 24),
+		byte(value >> 16),
+		byte(value >> 8),
+		byte(value),
+	}
+}
+
+func uint16ToBytes(value uint16) []byte {
+	return []byte{
+		byte(value >> 8),
+		byte(value),
+	}
+}
+
+// handleDiscPacket processes a DISC packet.
 func (r *Relay) handleDiscPacket(callsign string, addr *net.UDPAddr) {
 	if _, exists := r.Clients.Load(addr.String()); exists {
 		r.Clients.Delete(addr.String())
@@ -352,6 +421,7 @@ func (r *Relay) handleDiscPacket(callsign string, addr *net.UDPAddr) {
 	}
 }
 
+// sendPacket sends a packet to the specified address.
 func (r *Relay) sendPacket(magic string, addr *net.UDPAddr, callsign []byte) {
 	packet := make([]byte, 4)
 	copy(packet, []byte(magic))
@@ -366,6 +436,7 @@ func (r *Relay) sendPacket(magic string, addr *net.UDPAddr, callsign []byte) {
 	}
 }
 
+// sendPing sends a PING packet to the specified address.
 func (r *Relay) sendPing(addr string) {
 	encodedCallsign, err := EncodeCallsign(r.RelayCallsign)
 	if err != nil {
@@ -389,6 +460,7 @@ func (r *Relay) sendPing(addr string) {
 	}
 }
 
+// sendPong sends a PONG packet to the specified address.
 func (r *Relay) sendPong(addr *net.UDPAddr, callsign string) {
 	encodedCallsign, err := EncodeCallsign(callsign)
 	if err != nil {
@@ -406,6 +478,7 @@ func (r *Relay) sendPong(addr *net.UDPAddr, callsign string) {
 	}
 }
 
+// pingWorker is a worker that sends PING packets to clients and relays.
 func (r *Relay) pingWorker(ctx context.Context, tasks <-chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
@@ -421,6 +494,7 @@ func (r *Relay) pingWorker(ctx context.Context, tasks <-chan string, wg *sync.Wa
 	}
 }
 
+// PingPeers sends PING packets to all connected clients and relays.
 func (r *Relay) PingPeers(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	ticker := time.NewTicker(3 * time.Second)
@@ -454,6 +528,7 @@ func (r *Relay) PingPeers(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
+// RemoveInactivePeers removes clients and relays that have not sent a PONG packet in 30 seconds.
 func (r *Relay) RemoveInactivePeers(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
@@ -487,6 +562,7 @@ func (r *Relay) RemoveInactivePeers(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
+// ConnectToRelays attempts to connect to the target relays.
 func (r *Relay) ConnectToRelays(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	var workerWg sync.WaitGroup
@@ -524,6 +600,7 @@ func (r *Relay) ConnectToRelays(ctx context.Context, wg *sync.WaitGroup) {
 	logging.LogInfo("ConnectToRelays: All connection attempts stopped", nil)
 }
 
+// sendLinkPacket sends a LINK packet to the specified address.
 func (r *Relay) sendLinkPacket(targetAddr string) error {
 	encodedCallsign, err := EncodeCallsign(r.RelayCallsign)
 	if err != nil {
@@ -543,6 +620,7 @@ func (r *Relay) sendLinkPacket(targetAddr string) error {
 	return err
 }
 
+// LogPeerState logs the state of connected clients and relays every 10 seconds.
 func (r *Relay) LogPeerState(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -594,6 +672,7 @@ func (r *Relay) LogPeerState(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
+// relayDataPacket relays a data packet to all connected clients and relays.
 func (r *Relay) relayDataPacket(packet []byte, senderAddr *net.UDPAddr) {
 	logging.LogDebug("Relaying data packet to other clients", map[string]interface{}{"from": senderAddr})
 
