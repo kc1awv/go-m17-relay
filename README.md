@@ -199,6 +199,25 @@ The call-home request includes the following headers:
 | 0-3  | 4 bytes | Magic - ASCII "PONG"                                                                                             |
 | 4-9  | 6 bytes | 'from' callsign as encoded per [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A)   |
 
+### `INFO?`
+#### Relay information query
+
+| Byte | Size    | Purpose              |
+-------|---------|-----------------------
+| 0-3  | 4 bytes | Magic - ASCII "INFO" |
+| 4    | 1 byte  | ASCII character '?'  |
+
+### `INFO`
+#### Relay information reply
+
+| Byte  | Size    | Purpose                                                                                                        |
+--------|---------|----------------------------------------------------------------------------------------------------------------|
+| 0-3   | 4 bytes | Magic - ASCII "INFO"                                                                                           |
+| 4-9   | 6 bytes | 'from' callsign as encoded per [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A) |
+| 10-13 | 4 bytes | Relay uptime in seconds                                                                                        |
+| 14-15 | 2 bytes | Number of Clients connected to Relay                                                                           |
+| 16-17 | 2 bytes | Number of Relays interlinked to Relay                                                                          |
+
 ### `DISC`
 #### Disconnect packet. Used to politely close a connection to/from a Peer.
 
@@ -255,6 +274,7 @@ Total: 54 bytes (432 bits)
 - `handleAcknPacket(addr *net.UDPAddr)`: Processes an acknowledgment (ACKN) packet.
 - `handlePingPacket(callsign string, addr *net.UDPAddr)`: Processes a PING packet and responds with a PONG packet.
 - `handlePongPacket(callsign string, addr *net.UDPAddr)`: Processes a PONG packet.
+- `handleInfoPacket(addr *net.UDPAddr)`: Processes an INFO? (query) packet and responds with an INFO packet.
 - `handleDiscPacket(callsign string, addr *net.UDPAddr)`: Processes a DISCONNECT (DISC) packet and removes the client.
 - `relayDataPacket(packet []byte, senderAddr *net.UDPAddr)`: Handles data packets from clients.
 
@@ -273,6 +293,13 @@ Total: 54 bytes (432 bits)
 - `LogInfo(message string, fields map[string]interface{})`: Logs an info message.
 - `LogWarn(message string, fields map[string]interface{})`: Logs a warning message.
 - `LogError(message string, fields map[string]interface{})`: Logs an error message.
+
+### CallHome Functions
+
+- `CallHome(ctx context.Context, cfg *config.Config)`: Sends a call-home request to the central server.
+- `StartPeriodicCallHome(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config)`: Starts the periodic call-home service.
+- `getExternalIP() (string, error)`: Retrieves the external IP address of the relay.
+- `saveConfig(cfg *config.Config) error`: Saves the updated configuration to the config file.
 
 ## Usage
 
