@@ -354,6 +354,8 @@ func (r *Relay) handlePongPacket(callsign string, addr *net.UDPAddr) {
 
 // handleInfoPacket processes an INFO? packet.
 func (r *Relay) handleInfoPacket(addr *net.UDPAddr) {
+	logging.LogDebug("Received INFO? packet", map[string]interface{}{"from": addr.String()})
+
 	uptime := uint32(time.Since(r.StartTime).Seconds())
 	numClients := uint16(0)
 	numRelays := uint16(0)
