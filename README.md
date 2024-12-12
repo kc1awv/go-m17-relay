@@ -14,7 +14,7 @@ A demo relay is hosted at [KC1AWV.net](https://relay.kc1awv.net)
 - Hostname: relay.kc1awv.net
 - UDP Client Port: 17000
 
-Since no global list of Relays exists (yet), you will need to manually add the record to your local host file for the client you are using. Refer to the user's guide or documentation for instructions on how to do this with your client.
+An opt-in call-home service is available for listing relays that are made publicly available, and can be found at the [M17 Public Relay Status](https://relay.m17.link) page. There is an API endpoint that can also be used to retrieve a list of available relays in JSON format at [M17 Public Relay List API](https://relay.m17.link/api/v1/relays).
 
 ## Glossary
 
