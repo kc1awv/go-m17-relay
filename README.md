@@ -308,9 +308,13 @@ Total: 54 bytes (432 bits)
 ## Usage
 
 1. Configure the relay server by copying `config.dist` to `config.json` and editing the `config.json` file.
-2. Run the relay server using the following command: (config file location optional, defaults to working directory)
+2. Run the relay server using the following command:
+
+> [!TIP]
+> Config file location optional, defaults to working directory
+
    ```sh
-   go run main.go [/path/to/config.json]
+   go run main.go [-config /path/to/config.json]
    ```
 3. The relay server will start and log messages based on the configured log level.
 
