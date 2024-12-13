@@ -1,10 +1,12 @@
 {
     "log_level": "info",
+    "pid_file": "/var/run/go-m17-relay/relay.pid",
+    "log_file": "/var/log/go-m17-relay/relay.log",
     "relay_callsign": "RLY000001",
     "bind_address": "127.0.0.1:17000",
     "web_interface_address": "127.0.0.1:8080",
     "daemon_mode": true,
-    "uuid": "your-unique-id",
+    "uuid": "",
     "call_home_enabled": true,
     "target_relays": [
         {

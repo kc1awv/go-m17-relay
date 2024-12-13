@@ -70,6 +70,8 @@ The configuration is loaded from a JSON file (`config.json`).
 The configuration file should include the following fields:
 
 - `log_level`: (`STRING`) The logging level (e.g., "debug", "info", "warn", "error").
+- `pid_file`: (`STRING`) The location where the PID file should be created (daemon mode)
+- `log_file`: (`STRING`) The location where the log file should be created (daemon mode)
 - `relay_callsign`: (`STRING`) The 'callsign' of the relay. 9 character maximum, only characters allowed by [M17 Address Encoding](https://spec.m17project.org/pdf/M17_spec.pdf#appendix.A).
 - `bind_address`: (`STRING`) The address and port to bind the UDP socket to.
 - `web_interface_address`: (`STRING`) The address and port to bind the web interface to.
@@ -85,6 +87,8 @@ Example config.json:
 ```json
 {
     "log_level": "debug",
+    "pid_file": "/var/run/go-m17-relay/relay.pid",
+    "log_file": "/var/log/go-m17-relay/relay.log",
     "relay_callsign": "RLY000001",
     "bind_address": "127.0.0.1:17000",
     "web_interface_address": "127.0.0.1:8080",
@@ -304,9 +308,9 @@ Total: 54 bytes (432 bits)
 ## Usage
 
 1. Configure the relay server by copying `config.dist` to `config.json` and editing the `config.json` file.
-2. Run the relay server using the following command:
+2. Run the relay server using the following command: (config file location optional, defaults to working directory)
    ```sh
-   go run main.go
+   go run main.go [/path/to/config.json]
    ```
 3. The relay server will start and log messages based on the configured log level.
 

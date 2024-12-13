@@ -29,6 +29,8 @@ type TargetRelay struct {
 
 type Config struct {
 	LogLevel            string        `json:"log_level"`
+	PidFile             string        `json:"pid_file"`
+	LogFile             string        `json:"log_file"`
 	RelayCallsign       string        `json:"relay_callsign"`
 	BindAddress         string        `json:"bind_address"`
 	WebInterfaceAddress string        `json:"web_interface_address"`
