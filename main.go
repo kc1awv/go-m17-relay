@@ -36,6 +36,12 @@ import (
 	"github.com/sevlyar/go-daemon"
 )
 
+var configFile string
+
+func init() {
+	flag.StringVar(&configFile, "config", "config.json", "Path to the configuration file")
+}
+
 // validateConfig validates the configuration.
 func validateConfig(cfg *config.Config) error {
 	if len(cfg.RelayCallsign) > 9 {
@@ -106,7 +112,7 @@ func startServices(ctx context.Context, r *relay.Relay, wg *sync.WaitGroup, cfg 
 func main() {
 	flag.Parse()
 
-	cfg, err := config.LoadConfig("config.json")
+	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
 		logging.LogError("Failed to load configuration", map[string]interface{}{"error": err})
 		os.Exit(1)
@@ -121,9 +127,9 @@ func main() {
 
 	if cfg.DaemonMode {
 		cntxt := &daemon.Context{
-			PidFileName: "m17-relay.pid",
+			PidFileName: cfg.PidFile,
 			PidFilePerm: 0644,
-			LogFileName: "m17-relay.log",
+			LogFileName: cfg.LogFile,
 			LogFilePerm: 0640,
 			WorkDir:     "./",
 			Umask:       027,
