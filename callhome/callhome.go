@@ -35,7 +35,11 @@ import (
 	"go-m17-relay/logging"
 )
 
-func getExternalIP() (string, error) {
+func getExternalIP(cfg *config.Config) (string, error) {
+	if cfg.PublicIP != "" {
+		return cfg.PublicIP, nil
+	}
+
 	resp, err := http.Get("https://icanhazip.com")
 	if err != nil {
 		return "", err
@@ -55,7 +59,7 @@ func CallHome(ctx context.Context, cfg *config.Config) {
 		return
 	}
 
-	externalIP, err := getExternalIP()
+	publicIP, err := getExternalIP(cfg)
 	if err != nil {
 		logging.LogError("Failed to get external IP address", map[string]interface{}{"error": err})
 		return
@@ -76,7 +80,7 @@ func CallHome(ctx context.Context, cfg *config.Config) {
 	data := map[string]interface{}{
 		"uuid":       cfg.UUID,
 		"callsign":   cfg.RelayCallsign,
-		"ip_address": externalIP,
+		"ip_address": publicIP,
 		"udp_port":   port,
 		"status":     true,
 	}
