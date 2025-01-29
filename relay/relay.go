@@ -105,7 +105,7 @@ func NewRelay(addr string, callsign string, targetRelays []config.TargetRelay, m
 // Listen listens for incoming packets and processes them.
 func (r *Relay) Listen(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-	buf := make([]byte, 64)
+	buf := make([]byte, 1024)
 
 	logging.LogDebug("Relay is ready to receive packets...", nil)
 
