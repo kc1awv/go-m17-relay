@@ -131,7 +131,11 @@ func (r *Relay) Listen(ctx context.Context, wg *sync.WaitGroup) {
 
 			logging.LogDebug("Received packet", map[string]interface{}{"from": addr, "packet": buf[:n]})
 
-			if n >= 4 && string(buf[:4]) == "M17 " {
+			if n >= 4 &&
+				string(buf[:4]) == "M17 " ||
+				string(buf[:4]) == "M17D" ||
+				string(buf[:4]) == "M17H" ||
+				string(buf[:4]) == "M17P" {
 				r.relayDataPacket(buf[:n], addr)
 			} else {
 				r.handleControlPacket(buf[:n], addr)
