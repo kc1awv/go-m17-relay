@@ -245,12 +245,45 @@ The call-home request includes the following headers:
 |----------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
 | MAGIC          | 4 bytes  | Magic bytes 0x4d313720 `(M17 )`                                                                                                               |
 | StreamID (SID) | 2 bytes  | Random bits, changed for each PTT or stream, but consistent from frame to frame within a stream                                               |
-| LICH           | 28 bytes | The meaningful contents of a LICH frame defined in the [M17 Protocol Specification](https://spec.m17project.org/pdf/M17_spec.pdf#section.2.5) |
+| LSD            | 28 bytes | The Link Setup Data (DST, SRC, TYPE, META field) as defined in section 2.5.1 of the [M17 Protocol Specification](https://spec.m17project.org/) |
 | FN             | 2 bytes  | Frame number including the last frame indicator at (FN & 0x8000)                                                                              |
 | Payload        | 16 bytes | Payload (exactly as would be transmitted in an RF stream frame)                                                                               |
-| Reserved       | 2 bytes  | Reserved two byte field for future use. Originally CRC16, but is not needed over IP                                                           |
+| CRC16          | 2 bytes  | CRC for the entire packet, as defined in Section 2.6 of the [M17 Protocol Specification](https://spec.m17project.org/) |
 
 Total: 54 bytes (432 bits)
+
+#### M17 two-packets header packet. Used to transfer voice stream data in Two Packets mode.
+
+| Field          | Size     | Description                                                                                                                                   |
+|----------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| MAGIC          | 4 bytes  | Magic bytes 0x4d313748 `(M17H)`                                                                                                               |
+| StreamID (SID) | 2 bytes  | Random bits, changed for each PTT or stream, but consistent from frame to frame within a stream                                               |
+| LSD            | 28 bytes | The Link Setup Data (DST, SRC, TYPE, META field) as defined in section 2.5.1 of the [M17 Protocol Specification](https://spec.m17project.org/) |
+| CRC16          | 2 bytes  | CRC for the entire packet, as defined in Section 2.6 of the [M17 Protocol Specification](https://spec.m17project.org/)                        |
+
+Total: 36 bytes (288 bits)
+
+#### M17 two-packets data packet. Used to transfer voice stream data in Two Packets mode.
+
+| Field          | Size     | Description                                                                                                                                   |
+|----------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| MAGIC          | 4 bytes  | Magic bytes 0x4d313744 `(M17D)`                                                                                                               |
+| StreamID (SID) | 2 bytes  | Random bits, changed for each PTT or stream, but consistent from frame to frame within a stream                                               |
+| FN             | 2 bytes  | Frame number exactly as would be transmitted as an RF stream frame, including the last frame indicator at (FN & 0x8000)                       |
+| Payload        | 16 bytes | Payload (exactly as would be transmitted in an RF stream frame)                                                                               |
+| CRC16          | 2 bytes  | CRC for the entire packet, as defined in Section 2.6 of the [M17 Protocol Specification](https://spec.m17project.org/)                        |
+
+Total: 26 bytes (208 bits)
+
+#### M17 Packet Mode data packet. Used to transfer packet data.
+
+| Field          | Size         | Description                                                                                                                                   |
+|----------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| MAGIC          | 4 bytes      | Magic bytes 0x4d313750 `(M17P)`                                                                                                               |
+| LSF            | 30 bytes     | The Link Setup Frame(DST, SRC, TYPE, META field, CRC) as defined in Table 2.5.2 of the [M17 Protocol Specification](https://spec.m17project.org/) |
+| Payload        | 4..825 bytes | This includes a type specifer, the user data, and a CRC                                                                                       |
+
+Total: 38..859 bytes (304..6872 bits)
 
 ---
 
